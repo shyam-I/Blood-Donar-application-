@@ -3,24 +3,43 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
+// @ts-ignore
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#1F2937',
+    background: '#FAFAFC',
+    backgroundElement: '#F3F4F6', // Used for input background
+    backgroundSelected: '#E5E7EB',
+    textSecondary: '#6B7280',
+    primary: '#B30000', // Deep red matching the logo
+    primaryLight: '#FFCCD5',
+    secondary: '#EF233C',
+    accent: '#FFB703',
+    success: '#10B981',
+    error: '#EF4444',
+    card: '#FFFFFF',
+    border: '#E5E7EB',
+    shadow: 'rgba(0, 0, 0, 0.05)',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F3F4F6',
+    background: '#0F1016',
+    backgroundElement: '#1A1B23',
+    backgroundSelected: '#2A2C39',
+    textSecondary: '#9CA3AF',
+    primary: '#EF233C',
+    primaryLight: '#47121B',
+    secondary: '#D90429',
+    accent: '#FFB703',
+    success: '#34D399',
+    error: '#F87171',
+    card: '#161720',
+    border: '#2A2C39',
+    shadow: 'rgba(0, 0, 0, 0.3)',
   },
 } as const;
 

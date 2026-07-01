@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "BloodConnect",
-    "slug": "BloodConnect",
+    "name": "blood-donation-app",
+    "slug": "blood-donation-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bloodconnect",
+    "scheme": "blooddonationapp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -34,7 +34,8 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
