@@ -11,7 +11,8 @@ export function useProtectedRoute() {
     // Prevent redirecting while we are still checking if the user is authenticated from SecureStore
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(admin)' || segments[0] === '(donor)';
+    const segs = segments as string[];
+    const inAuthGroup = segs[0] === '(admin)' || segs[0] === '(donor)';
     const authStatus = isAuthenticated();
 
     if (!authStatus && inAuthGroup) {
@@ -19,7 +20,7 @@ export function useProtectedRoute() {
       router.replace('/login');
     } else if (authStatus) {
       // If the user is authenticated, redirect them away from auth screens (like login or index)
-      const isAuthScreen = segments[0] === 'login' || segments.length === 0 || (segments.length === 1 && segments[0] === 'index');
+      const isAuthScreen = segs[0] === 'login' || segs.length === 0 || (segs.length === 1 && (segs[0] === 'index' || segs[0] === ''));
       if (isAuthScreen) {
         const user = getCurrentUser();
         if (user?.role === 'Admin') {

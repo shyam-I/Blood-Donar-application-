@@ -1,5 +1,6 @@
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
+import { DropdownPicker } from '@/components/DropdownPicker';
 import { Colors } from '@/constants/theme';
 import { getDaysSince, useAppState } from '@/context/AppState';
 import { Award, MessageSquare, Phone, Search, ShieldAlert } from 'lucide-react-native';
@@ -9,10 +10,10 @@ import {
   FlatList,
   Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
+  Switch
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,18 +25,31 @@ export default function DonorSearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBloodGroup, setSelectedBloodGroup] = useState<string>('All');
   const [selectedClub, setSelectedClub] = useState<string>('All');
+  const [selectedLocation, setSelectedLocation] = useState<string>('All');
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
 
   const bloodGroups = ['All', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-
+  
   // Extract unique clubs from the donor list, defaulting to Independent Donors if missing
   const clubs = ['All', ...Array.from(new Set(donors.map((d) => d.clubName || 'Independent Donors')))] as string[];
+  
+  // Mock locations since it wasn't explicitly modeled in the mocked donor data yet
+  const locations = ['All', 'Coimbatore', 'Chennai', 'Madurai', 'Trichy', 'Salem'];
 
   // Filter donors
   const filteredDonors = donors.filter((d) => {
+    const daysSince = getDaysSince(d.lastDonationDate);
+    const isEligible = d.lastDonationDate === 'Never' || daysSince >= 90;
+    const isAvailable = isEligible && d.isActive;
+
     const matchesName = d.fullName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesBlood = selectedBloodGroup === 'All' || d.bloodGroup === selectedBloodGroup;
     const matchesClub = selectedClub === 'All' || d.clubName === selectedClub;
-    return matchesName && matchesBlood && matchesClub;
+    // We don't have location on donor currently but we can simulate passing if 'All' is selected
+    const matchesLocation = selectedLocation === 'All'; 
+    const matchesAvailability = showOnlyAvailable ? isAvailable : true;
+
+    return matchesName && matchesBlood && matchesClub && matchesLocation && matchesAvailability;
   });
 
   const handleCall = (phone: string, name: string) => {
@@ -77,7 +91,6 @@ export default function DonorSearch() {
         </Text>
       </View>
 
-      {/* Search Input */}
       <View style={styles.searchSection}>
         <Input
           placeholder="Search donor by name..."
@@ -86,73 +99,47 @@ export default function DonorSearch() {
           icon={<Search size={20} color={themeColors.textSecondary} />}
           containerStyle={styles.searchInput}
         />
-      </View>
 
-      {/* Horizontal Blood Group Selector */}
-      <View style={styles.filterSection}>
-        <Text style={[styles.filterLabel, { color: themeColors.textSecondary }]}>Blood Group</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {bloodGroups.map((bg) => (
-            <Pressable
-              key={bg}
-              style={[
-                styles.filterPill,
-                {
-                  backgroundColor:
-                    selectedBloodGroup === bg ? themeColors.primary : themeColors.backgroundElement,
-                  borderColor: themeColors.border,
-                },
-              ]}
-              onPress={() => setSelectedBloodGroup(bg)}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  {
-                    color: selectedBloodGroup === bg ? '#FFFFFF' : themeColors.text,
-                    fontWeight: selectedBloodGroup === bg ? '700' : '500',
-                  },
-                ]}
-              >
-                {bg}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
+        <View style={styles.row}>
+          <View style={styles.col}>
+            <DropdownPicker
+              label="Blood Group"
+              placeholder="All"
+              value={selectedBloodGroup}
+              options={bloodGroups}
+              onSelect={setSelectedBloodGroup}
+            />
+          </View>
+          <View style={styles.col}>
+            <DropdownPicker
+              label="Location"
+              placeholder="All Locations"
+              value={selectedLocation}
+              options={locations}
+              onSelect={setSelectedLocation}
+              searchable={true}
+            />
+          </View>
+        </View>
 
-      {/* Horizontal Club Selector */}
-      <View style={styles.filterSection}>
-        <Text style={[styles.filterLabel, { color: themeColors.textSecondary }]}>Rotaract Club</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {clubs.map((c) => (
-            <Pressable
-              key={c}
-              style={[
-                styles.filterPill,
-                {
-                  backgroundColor:
-                    selectedClub === c ? themeColors.primary : themeColors.backgroundElement,
-                  borderColor: themeColors.border,
-                  paddingHorizontal: 14,
-                },
-              ]}
-              onPress={() => setSelectedClub(c)}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  {
-                    color: selectedClub === c ? '#FFFFFF' : themeColors.text,
-                    fontWeight: selectedClub === c ? '700' : '500',
-                  },
-                ]}
-              >
-                {c === 'All' ? 'All Clubs' : c.replace('Rotaract Club of ', '')}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <DropdownPicker
+          label="Rotaract Club"
+          placeholder="All Clubs"
+          value={selectedClub}
+          options={clubs}
+          onSelect={setSelectedClub}
+          searchable={true}
+        />
+
+        <View style={styles.switchRow}>
+          <Text style={[styles.switchLabel, { color: themeColors.text }]}>Show Only Available Donors</Text>
+          <Switch
+            value={showOnlyAvailable}
+            onValueChange={setShowOnlyAvailable}
+            trackColor={{ false: themeColors.border, true: themeColors.primary + '80' }}
+            thumbColor={showOnlyAvailable ? themeColors.primary : '#f4f3f4'}
+          />
+        </View>
       </View>
 
       {/* Donors List */}
@@ -169,12 +156,10 @@ export default function DonorSearch() {
           return (
             <Card style={styles.donorCard}>
               <View style={styles.cardMain}>
-                {/* Blood Group Left Section */}
                 <View style={[styles.bloodBadge, { backgroundColor: themeColors.primary }]}>
                   <Text style={styles.bloodBadgeText}>{item.bloodGroup}</Text>
                 </View>
 
-                {/* Donor Details Middle Section */}
                 <View style={styles.donorDetails}>
                   <Text style={[styles.donorName, { color: themeColors.text }]}>{item.fullName}</Text>
                   <Text style={[styles.donorClub, { color: themeColors.textSecondary }]}>
@@ -205,7 +190,6 @@ export default function DonorSearch() {
                 </View>
               </View>
 
-              {/* Action Buttons Footer */}
               <View style={[styles.cardFooter, { borderTopColor: themeColors.border }]}>
                 <Pressable
                   style={[styles.actionBtn, { backgroundColor: themeColors.backgroundElement }]}
@@ -263,34 +247,25 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     marginVertical: 0,
+    marginBottom: 16,
   },
-  filterSection: {
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  col: {
+    flex: 1,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
     marginBottom: 10,
   },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginLeft: 24,
-    marginBottom: 6,
-  },
-  filterScroll: {
-    paddingLeft: 20,
-    flexDirection: 'row',
-  },
-  filterPill: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-    marginRight: 10,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterPillText: {
-    fontSize: 13,
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   listContainer: {
     padding: 20,

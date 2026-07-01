@@ -17,6 +17,7 @@ import { useAppState } from '@/context/AppState';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { DatePickerInput } from '@/components/DatePickerInput';
 
 export default function DonorProfile() {
   let colorScheme = 'light' as 'light' | 'dark';
@@ -43,27 +44,20 @@ export default function DonorProfile() {
     totalDonations: 0,
   };
 
-  const [newDonationDate, setNewDonationDate] = useState('');
+  const [newDonationDate, setNewDonationDate] = useState<Date | null>(null);
   const [loggingDonation, setLoggingDonation] = useState(false);
 
   const myHistory = donations.filter((d) => d.donorId === donor.id);
 
   const handleLogDonation = () => {
-    if (!newDonationDate.trim()) {
-      Alert.alert('Error', 'Please enter a valid date (YYYY-MM-DD)');
+    if (!newDonationDate) {
+      Alert.alert('Error', 'Please select a valid date');
       return;
     }
 
-    // Basic date regex check
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(newDonationDate)) {
-      Alert.alert('Error', 'Please use YYYY-MM-DD format (e.g., 2026-06-28)');
-      return;
-    }
-
-    updateLastDonationDate(donor.id, newDonationDate);
+    updateLastDonationDate(donor.id, newDonationDate.toISOString().split('T')[0]);
     Alert.alert('Success', 'Blood donation logged successfully!');
-    setNewDonationDate('');
+    setNewDonationDate(null);
     setLoggingDonation(false);
   };
 
@@ -113,21 +107,18 @@ export default function DonorProfile() {
               title="Log Blood Donation"
               onPress={() => {
                 setLoggingDonation(true);
-                // Set default to today's date in YYYY-MM-DD
-                const today = new Date().toISOString().split('T')[0];
-                setNewDonationDate(today);
+                setNewDonationDate(new Date());
               }}
               variant="outline"
               size="small"
             />
           ) : (
-            <View style={styles.logForm}>
-              <Input
-                label="Donation Date"
-                placeholder="YYYY-MM-DD"
-                value={newDonationDate}
-                onChangeText={setNewDonationDate}
-              />
+              <View style={styles.logForm}>
+                <DatePickerInput
+                  label="Donation Date"
+                  value={newDonationDate}
+                  onChange={setNewDonationDate}
+                />
               <View style={styles.logActions}>
                 <Button
                   title="Cancel"

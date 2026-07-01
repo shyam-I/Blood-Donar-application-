@@ -4,20 +4,23 @@ import {
   Text,
   View,
   ScrollView,
-  Pressable,
-  useColorScheme,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Megaphone, Calendar, Heart } from 'lucide-react-native';
+import { Megaphone } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useAppState } from '@/context/AppState';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { DropdownPicker } from '@/components/DropdownPicker';
+import { SegmentedControl } from '@/components/SegmentedControl';
+import { DatePickerInput } from '@/components/DatePickerInput';
+import { TimePickerInput } from '@/components/TimePickerInput';
+import { Stepper } from '@/components/Stepper';
 
 export default function DonorCreateEmergencyRequest() {
   let colorScheme = 'light' as 'light' | 'dark';
@@ -29,9 +32,10 @@ export default function DonorCreateEmergencyRequest() {
   const [hospitalName, setHospitalName] = useState('');
   const [hospitalAddress, setHospitalAddress] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
-  const [unitsRequired, setUnitsRequired] = useState('');
+  const [unitsRequired, setUnitsRequired] = useState(1);
   const [contactNumber, setContactNumber] = useState('');
-  const [requiredByDate, setRequiredByDate] = useState('');
+  const [requiredByDate, setRequiredByDate] = useState<Date | null>(null);
+  const [requiredByTime, setRequiredByTime] = useState<Date | null>(null);
   const [emergencyLevel, setEmergencyLevel] = useState('Normal');
   const [notes, setNotes] = useState('');
 
@@ -46,21 +50,12 @@ export default function DonorCreateEmergencyRequest() {
     if (!hospitalAddress.trim()) tempErrors.hospitalAddress = 'Hospital Address is required';
     if (!bloodGroup.trim()) tempErrors.bloodGroup = 'Select a blood group';
     
-    if (!unitsRequired.trim() || isNaN(Number(unitsRequired)) || Number(unitsRequired) <= 0) {
-      tempErrors.unitsRequired = 'Enter a valid number of units';
-    }
-    
     if (!contactNumber.trim() || contactNumber.length < 10) {
       tempErrors.contactNumber = 'Enter a valid contact number';
     }
 
-    if (!requiredByDate.trim()) {
+    if (!requiredByDate) {
       tempErrors.requiredByDate = 'Required By Date is required';
-    } else {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(requiredByDate)) {
-        tempErrors.requiredByDate = 'Use YYYY-MM-DD format (e.g. 2026-06-29)';
-      }
     }
 
     setErrors(tempErrors);
@@ -76,9 +71,9 @@ export default function DonorCreateEmergencyRequest() {
       hospitalName,
       hospitalAddress,
       bloodGroup,
-      unitsRequired: Number(unitsRequired),
+      unitsRequired,
       contactNumber,
-      requiredByDate,
+      requiredByDate: requiredByDate ? requiredByDate.toISOString().split('T')[0] : '',
       emergencyLevel: emergencyLevel as any,
       notes,
     });
@@ -91,6 +86,9 @@ export default function DonorCreateEmergencyRequest() {
   };
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const hospitals = [
+    'KMCH', 'Ganga Hospital', 'PSG Hospitals', 'Ramakrishna Hospital', 'KG Hospital', 'Apollo Hospitals'
+  ];
   const emergencyLevels = ['Normal', 'Urgent', 'Critical'];
 
   return (
@@ -126,11 +124,13 @@ export default function DonorCreateEmergencyRequest() {
               error={errors.guardianName}
             />
 
-            <Input
+            <DropdownPicker
               label="Hospital Name"
-              placeholder="e.g. KMCH"
+              placeholder="Select Hospital"
               value={hospitalName}
-              onChangeText={setHospitalName}
+              options={hospitals}
+              onSelect={setHospitalName}
+              searchable={true}
               error={errors.hospitalName}
             />
 
@@ -142,108 +142,59 @@ export default function DonorCreateEmergencyRequest() {
               error={errors.hospitalAddress}
             />
 
-            {/* Blood Group Selector */}
-            <Text style={[styles.selectorLabel, { color: themeColors.textSecondary }]}>
-              Required Blood Group
-            </Text>
-            <View style={styles.bloodGroupContainer}>
-              {bloodGroups.map((bg) => (
-                <Pressable
-                  key={bg}
-                  style={[
-                    styles.bloodPill,
-                    {
-                      backgroundColor:
-                        bloodGroup === bg ? themeColors.primary : themeColors.backgroundElement,
-                      borderColor: themeColors.border,
-                    },
-                  ]}
-                  onPress={() => setBloodGroup(bg)}
-                >
-                  <Text
-                    style={[
-                      styles.bloodPillText,
-                      {
-                        color: bloodGroup === bg ? '#FFFFFF' : themeColors.text,
-                        fontWeight: bloodGroup === bg ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    {bg}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {errors.bloodGroup && (
-              <Text style={[styles.errorText, { color: themeColors.error }]}>
-                {errors.bloodGroup}
-              </Text>
-            )}
+            <DropdownPicker
+              label="Required Blood Group"
+              placeholder="Select Blood Group"
+              value={bloodGroup}
+              options={bloodGroups}
+              onSelect={setBloodGroup}
+              error={errors.bloodGroup}
+            />
+
+            <Stepper
+              label="Units Required"
+              value={unitsRequired}
+              onValueChange={setUnitsRequired}
+              min={1}
+              max={20}
+            />
 
             <View style={styles.row}>
               <View style={styles.col}>
-                <Input
-                  label="Units Required"
-                  placeholder="e.g. 3"
-                  value={unitsRequired}
-                  onChangeText={setUnitsRequired}
-                  keyboardType="numeric"
-                  error={errors.unitsRequired}
+                <DatePickerInput
+                  label="Required By Date"
+                  value={requiredByDate}
+                  onChange={setRequiredByDate}
                 />
+                {errors.requiredByDate && <Text style={[styles.errorText, { color: themeColors.error, marginTop: -12 }]}>{errors.requiredByDate}</Text>}
               </View>
               <View style={styles.col}>
-                <Input
-                  label="Required By Date"
-                  placeholder="YYYY-MM-DD"
-                  value={requiredByDate}
-                  onChangeText={setRequiredByDate}
-                  error={errors.requiredByDate}
+                <TimePickerInput
+                  label="Required By Time"
+                  value={requiredByTime}
+                  onChange={setRequiredByTime}
                 />
               </View>
             </View>
 
             <Input
               label="Contact Phone Number"
-              placeholder="e.g. +91 98765 98765"
+              placeholder="e.g. 9876598765"
               value={contactNumber}
-              onChangeText={setContactNumber}
-              keyboardType="phone-pad"
+              onChangeText={(text) => setContactNumber(text.replace(/[^0-9]/g, '').slice(0, 10))}
+              keyboardType="number-pad"
               error={errors.contactNumber}
             />
 
-            {/* Emergency Level Selector */}
             <Text style={[styles.selectorLabel, { color: themeColors.textSecondary }]}>
               Emergency Level
             </Text>
-            <View style={styles.bloodGroupContainer}>
-              {emergencyLevels.map((lvl) => (
-                <Pressable
-                  key={lvl}
-                  style={[
-                    styles.bloodPill,
-                    {
-                      width: '30%',
-                      backgroundColor:
-                        emergencyLevel === lvl ? themeColors.primary : themeColors.backgroundElement,
-                      borderColor: themeColors.border,
-                    },
-                  ]}
-                  onPress={() => setEmergencyLevel(lvl)}
-                >
-                  <Text
-                    style={[
-                      styles.bloodPillText,
-                      {
-                        color: emergencyLevel === lvl ? '#FFFFFF' : themeColors.text,
-                        fontWeight: emergencyLevel === lvl ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    {lvl}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedControl
+              options={emergencyLevels}
+              selectedValue={emergencyLevel}
+              onSelect={setEmergencyLevel}
+            />
+            <View style={{ marginBottom: 16 }} />
 
             <Input
               label="Additional Notes (Optional)"
@@ -294,27 +245,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   selectorLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 10,
-    marginLeft: 4,
-  },
-  bloodGroupContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 16,
-  },
-  bloodPill: {
-    width: '22%',
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  bloodPillText: {
-    fontSize: 14,
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   errorText: {
     fontSize: 12,

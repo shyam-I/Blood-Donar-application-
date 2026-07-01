@@ -1,18 +1,21 @@
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { DatePickerInput } from '@/components/DatePickerInput';
+import { DropdownPicker } from '@/components/DropdownPicker';
 import { Input } from '@/components/Input';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { Colors } from '@/constants/theme';
 import { useAppState } from '@/context/AppState';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight, Award, Briefcase, Calendar, ChevronDown, Droplets, FileText, Heart, Mail, MapPin, Phone, User, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Droplets, FileText, Heart, Mail, MapPin, Phone, User } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View
 } from 'react-native';
@@ -27,11 +30,11 @@ export default function RegisterScreen() {
 
   // Step 1: Personal Info
   const [fullName, setFullName] = useState('');
-  const [age, setAge] = useState(''); // Serves as Age/DOB in UI to avoid redesign
-  const [gender, setGender] = useState(''); // Replaces profession in UI state visually but using same layout
+  const [dob, setDob] = useState<Date | null>(null);
+  const [gender, setGender] = useState('Male'); // Segmented control default
   const [phoneNumber, setPhoneNumber] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
-  const [address, setAddress] = useState(''); // Optional if kept
+  const [address, setAddress] = useState('');
 
   // Step 2: Rotaract Info
   const [clubName, setClubName] = useState('');
@@ -39,7 +42,8 @@ export default function RegisterScreen() {
 
   // Step 3: Medical & Emergency Contact
   const [bloodGroup, setBloodGroup] = useState('');
-  const [lastDonationDate, setLastDonationDate] = useState('');
+  const [lastDonationDate, setLastDonationDate] = useState<Date | null>(null);
+  const [neverDonated, setNeverDonated] = useState(false);
   const [healthIssues, setHealthIssues] = useState('');
   const [parentContact, setParentContact] = useState('');
   const [emergencyNumber, setEmergencyNumber] = useState('');
@@ -52,6 +56,7 @@ export default function RegisterScreen() {
 
     if (currentStep === 1) {
       if (!fullName.trim()) stepErrors.fullName = 'Full Name is required';
+      if (!dob) stepErrors.dob = 'Date of birth is required';
       if (!phoneNumber.trim() || phoneNumber.length < 10) {
         stepErrors.phoneNumber = 'Enter a valid mobile number';
       }
@@ -62,6 +67,7 @@ export default function RegisterScreen() {
       // Skippable step
     } else if (currentStep === 3) {
       if (!bloodGroup.trim()) stepErrors.bloodGroup = 'Select a blood group';
+      if (!neverDonated && !lastDonationDate) stepErrors.lastDonationDate = 'Select date or mark never donated';
       if (!parentContact.trim()) stepErrors.parentContact = 'Emergency contact name is required';
       if (!emergencyNumber.trim() || emergencyNumber.length < 10) {
         stepErrors.emergencyNumber = 'Enter a valid emergency contact number';
@@ -89,10 +95,18 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validateStep(3)) return;
 
+    // Calculate Age
+    let computedAge = 18;
+    if (dob) {
+      const diffMs = Date.now() - dob.getTime();
+      const ageDt = new Date(diffMs);
+      computedAge = Math.abs(ageDt.getUTCFullYear() - 1970);
+    }
+
     const success = await registerDonor({
       fullName,
-      age: Number(age) || 18,
-      gender: gender || 'Not Specified',
+      age: computedAge,
+      gender: gender,
       profession: 'Not Specified', // Defaults
       phoneNumber,
       emailAddress,
@@ -100,7 +114,7 @@ export default function RegisterScreen() {
       clubName,
       clubDesignation,
       bloodGroup,
-      lastDonationDate: lastDonationDate.trim() || 'Never',
+      lastDonationDate: neverDonated ? 'Never' : (lastDonationDate ? lastDonationDate.toISOString().split('T')[0] : 'Never'),
       healthIssues: healthIssues.trim() || 'None',
       parentContact,
       emergencyNumber,
@@ -114,6 +128,14 @@ export default function RegisterScreen() {
   };
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const clubOptions = [
+    'Rotaract Club of Coimbatore Central',
+    'Rotaract Club of Chennai Midtown',
+    'Rotaract Club of Madurai Greater',
+    'Rotaract Club of Trichy Rockcity',
+    'Rotaract Club of Salem Steel City'
+  ];
+  const designationOptions = ['President', 'Secretary', 'Treasurer', 'Member', 'Director', 'Chairperson', 'Other'];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -186,49 +208,40 @@ export default function RegisterScreen() {
               <View>
                 <Input
                   label="Full Name"
-                  placeholder="e.g. John Doe"
+                  placeholder="e.g. shyam I"
                   value={fullName}
                   onChangeText={setFullName}
                   error={errors.fullName}
                   icon={<User size={18} color={themeColors.textSecondary} />}
                 />
 
-                <View style={styles.row}>
-                  <View style={styles.halfFlex}>
-                    <Input
-                      label="Gender"
-                      placeholder="e.g. Male"
-                      value={gender}
-                      onChangeText={setGender}
-                      error={errors.gender}
-                      icon={<Briefcase size={18} color={themeColors.textSecondary} />}
-                    />
-                  </View>
-                  <View style={styles.halfFlex}>
-                    <Input
-                      label="Age / DOB"
-                      placeholder="25"
-                      value={age}
-                      onChangeText={setAge}
-                      keyboardType="numeric"
-                      error={errors.age}
-                      rightIcon={<ChevronDown size={18} color={themeColors.textSecondary} />}
-                    />
-                  </View>
-                </View>
+                <Text style={[styles.selectorLabel, { color: themeColors.textSecondary }]}>GENDER</Text>
+                <SegmentedControl
+                  options={['Male', 'Female', 'Other', 'Unspecified']}
+                  selectedValue={gender}
+                  onSelect={setGender}
+                />
+                <View style={{ marginBottom: 16 }} />
+
+                <DatePickerInput
+                  label="Date of Birth"
+                  value={dob}
+                  onChange={setDob}
+                />
+                {errors.dob && <Text style={[styles.errorText, { color: themeColors.error }]}>{errors.dob}</Text>}
 
                 <Input
                   label="Mobile Number"
-                  placeholder="e.g. +91 98765 43210"
+                  placeholder="e.g. 9876543210"
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
+                  onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, '').slice(0, 10))}
+                  keyboardType="number-pad"
                   error={errors.phoneNumber}
                   icon={<Phone size={18} color={themeColors.textSecondary} />}
                 />
                 <Input
                   label="Email Address"
-                  placeholder="e.g. john.doe@gmail.com"
+                  placeholder="e.g. SHYAM@gmail.com"
                   value={emailAddress}
                   onChangeText={setEmailAddress}
                   keyboardType="email-address"
@@ -253,73 +266,57 @@ export default function RegisterScreen() {
 
             {step === 2 && (
               <View>
-                <Input
+                <DropdownPicker
                   label="Club Name (Optional)"
-                  placeholder="e.g. Red Cross"
+                  placeholder="Search Club..."
                   value={clubName}
-                  onChangeText={setClubName}
-                  icon={<Users size={18} color={themeColors.textSecondary} />}
+                  options={clubOptions}
+                  onSelect={setClubName}
+                  searchable={true}
                 />
-                <Input
+
+                <DropdownPicker
                   label="Designation (Optional)"
-                  placeholder="e.g. Volunteer"
+                  placeholder="Select Designation"
                   value={clubDesignation}
-                  onChangeText={setClubDesignation}
-                  icon={<Award size={18} color={themeColors.textSecondary} />}
+                  options={designationOptions}
+                  onSelect={setClubDesignation}
                 />
               </View>
             )}
 
             {step === 3 && (
               <View>
-                {/* Blood Group Selector */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 4 }}>
-                  <Droplets size={16} color={themeColors.textSecondary} style={{ marginRight: 6 }} />
-                  <Text style={[styles.selectorLabel, { color: themeColors.textSecondary, marginBottom: 0, marginLeft: 0 }]}>
-                    BLOOD GROUP
-                  </Text>
-                </View>
-                <View style={styles.bloodGroupContainer}>
-                  {bloodGroups.map((bg) => (
-                    <Pressable
-                      key={bg}
-                      style={[
-                        styles.bloodPill,
-                        {
-                          backgroundColor:
-                            bloodGroup === bg ? themeColors.primary : '#FFFFFF',
-                          borderColor: bloodGroup === bg ? themeColors.primary : themeColors.border,
-                        },
-                      ]}
-                      onPress={() => setBloodGroup(bg)}
-                    >
-                      <Text
-                        style={[
-                          styles.bloodPillText,
-                          {
-                            color: bloodGroup === bg ? '#FFFFFF' : themeColors.text,
-                            fontWeight: bloodGroup === bg ? '700' : '600',
-                          },
-                        ]}
-                      >
-                        {bg}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                {errors.bloodGroup && (
-                  <Text style={[styles.errorText, { color: themeColors.error }]}>
-                    {errors.bloodGroup}
-                  </Text>
-                )}
-
-                <Input
-                  label="Last Blood Donation Date"
-                  placeholder="YYYY-MM-DD (or leave blank)"
-                  value={lastDonationDate}
-                  onChangeText={setLastDonationDate}
-                  icon={<Calendar size={18} color={themeColors.textSecondary} />}
+                <DropdownPicker
+                  label="Blood Group"
+                  placeholder="Select Blood Group"
+                  value={bloodGroup}
+                  options={bloodGroups}
+                  onSelect={setBloodGroup}
+                  error={errors.bloodGroup}
                 />
+
+                <DatePickerInput
+                  label="Last Blood Donation Date"
+                  value={lastDonationDate}
+                  onChange={setLastDonationDate}
+                  disabled={neverDonated}
+                />
+                {errors.lastDonationDate && <Text style={[styles.errorText, { color: themeColors.error, marginTop: -8 }]}>{errors.lastDonationDate}</Text>}
+
+                <View style={styles.switchRow}>
+                  <Text style={[styles.switchLabel, { color: themeColors.text }]}>I have never donated before</Text>
+                  <Switch
+                    value={neverDonated}
+                    onValueChange={(val) => {
+                      setNeverDonated(val);
+                      if (val) setLastDonationDate(null);
+                    }}
+                    trackColor={{ false: themeColors.border, true: themeColors.primary + '80' }}
+                    thumbColor={neverDonated ? themeColors.primary : '#f4f3f4'}
+                  />
+                </View>
+
                 <Input
                   label="Diseases / Medical Conditions"
                   placeholder="e.g. None, Asthma, Diabetes"
@@ -337,10 +334,10 @@ export default function RegisterScreen() {
                 />
                 <Input
                   label="Emergency Contact Number"
-                  placeholder="e.g. +91 98765 43211"
+                  placeholder="e.g. 9876543211"
                   value={emergencyNumber}
-                  onChangeText={setEmergencyNumber}
-                  keyboardType="phone-pad"
+                  onChangeText={(text) => setEmergencyNumber(text.replace(/[^0-9]/g, '').slice(0, 10))}
+                  keyboardType="number-pad"
                   error={errors.emergencyNumber}
                   icon={<Phone size={18} color={themeColors.textSecondary} />}
                 />
@@ -474,42 +471,27 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  halfFlex: {
-    flex: 1,
-  },
   selectorLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 10,
-    marginLeft: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
     letterSpacing: 0.5,
-  },
-  bloodGroupContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 16,
-  },
-  bloodPill: {
-    width: '22%',
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
-  bloodPillText: {
-    fontSize: 15,
   },
   errorText: {
     fontSize: 12,
     marginTop: -8,
     marginBottom: 16,
     marginLeft: 4,
+    fontWeight: '500',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  switchLabel: {
+    fontSize: 15,
     fontWeight: '500',
   },
   buttonRow: {
