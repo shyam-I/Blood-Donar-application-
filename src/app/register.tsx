@@ -24,16 +24,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function RegisterScreen() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { registerDonor } = useAppState();
+  const { registerDonor, pendingGoogleAuth } = useAppState();
 
   const [step, setStep] = useState(1);
 
   // Step 1: Personal Info
-  const [fullName, setFullName] = useState('');
+  const [fullName, setFullName] = useState(pendingGoogleAuth?.name || '');
   const [dob, setDob] = useState<Date | null>(null);
   const [gender, setGender] = useState('Male'); // Segmented control default
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [emailAddress, setEmailAddress] = useState('');
+  const emailAddress = pendingGoogleAuth?.email || '';
   const [address, setAddress] = useState('');
 
   // Step 2: Rotaract Info
@@ -56,12 +56,17 @@ export default function RegisterScreen() {
 
     if (currentStep === 1) {
       if (!fullName.trim()) stepErrors.fullName = 'Full Name is required';
-      if (!dob) stepErrors.dob = 'Date of birth is required';
+      if (!dob) {
+        stepErrors.dob = 'Date of birth is required';
+      } else {
+        const diffMs = Date.now() - dob.getTime();
+        const computedAge = Math.abs(new Date(diffMs).getUTCFullYear() - 1970);
+        if (computedAge < 18 || computedAge > 65) {
+           stepErrors.dob = 'You must be between 18 and 65 years old to register';
+        }
+      }
       if (!phoneNumber.trim() || phoneNumber.length < 10) {
         stepErrors.phoneNumber = 'Enter a valid mobile number';
-      }
-      if (!emailAddress.trim() || !emailAddress.includes('@')) {
-        stepErrors.emailAddress = 'Enter a valid email address';
       }
     } else if (currentStep === 2) {
       // Skippable step
@@ -95,7 +100,6 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validateStep(3)) return;
 
-    // Calculate Age
     let computedAge = 18;
     if (dob) {
       const diffMs = Date.now() - dob.getTime();
@@ -105,11 +109,14 @@ export default function RegisterScreen() {
 
     const success = await registerDonor({
       fullName,
+      dob: dob ? dob.toISOString().split('T')[0] : '1990-01-01',
       age: computedAge,
       gender: gender,
       profession: 'Not Specified', // Defaults
       phoneNumber,
       emailAddress,
+      googleId: pendingGoogleAuth?.id,
+      profilePicture: pendingGoogleAuth?.picture,
       address,
       clubName,
       clubDesignation,
@@ -121,8 +128,8 @@ export default function RegisterScreen() {
     });
 
     if (success) {
-      Alert.alert('Registration Successful', 'Mock token generated. Redirecting to Login...', [
-        { text: 'OK', onPress: () => router.replace('/login') },
+      Alert.alert('Registration Successful', 'Welcome to the lifesaver network!', [
+        { text: 'OK' }, // Redirection will be handled automatically by useProtectedRoute
       ]);
     }
   };
@@ -229,6 +236,11 @@ export default function RegisterScreen() {
                   onChange={setDob}
                 />
                 {errors.dob && <Text style={[styles.errorText, { color: themeColors.error }]}>{errors.dob}</Text>}
+                {dob && !errors.dob && (
+                  <Text style={{ fontSize: 13, color: themeColors.textSecondary, marginBottom: 16, marginLeft: 4 }}>
+                    Calculated Age: {Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)} years
+                  </Text>
+                )}
 
                 <Input
                   label="Mobile Number"
@@ -239,16 +251,18 @@ export default function RegisterScreen() {
                   error={errors.phoneNumber}
                   icon={<Phone size={18} color={themeColors.textSecondary} />}
                 />
-                <Input
-                  label="Email Address"
-                  placeholder="e.g. SHYAM@gmail.com"
-                  value={emailAddress}
-                  onChangeText={setEmailAddress}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  error={errors.emailAddress}
-                  icon={<Mail size={18} color={themeColors.textSecondary} />}
-                />
+                <View style={styles.readOnlyEmailContainer}>
+                  <Text style={[styles.selectorLabel, { color: themeColors.textSecondary }]}>EMAIL ADDRESS</Text>
+                  <View style={[styles.readOnlyEmailBox, { backgroundColor: themeColors.backgroundSelected }]}>
+                    <Mail size={18} color={themeColors.textSecondary} />
+                    <Text style={[styles.readOnlyEmailText, { color: themeColors.textSecondary }]}>
+                      {emailAddress}
+                    </Text>
+                  </View>
+                  <Text style={[styles.readOnlyEmailHelper, { color: themeColors.textSecondary }]}>
+                    Verified by Google Sign-In
+                  </Text>
+                </View>
                 <Input
                   label="Address (Optional)"
                   placeholder="Street, City, Pincode"
@@ -333,7 +347,7 @@ export default function RegisterScreen() {
                   icon={<User size={18} color={themeColors.textSecondary} />}
                 />
                 <Input
-                  label="Emergency Contact Number"
+                  label="Alternative Mobile Number (Emergency Contact)"
                   placeholder="e.g. 9876543211"
                   value={emergencyNumber}
                   onChangeText={(text) => setEmergencyNumber(text.replace(/[^0-9]/g, '').slice(0, 10))}
@@ -502,5 +516,24 @@ const styles = StyleSheet.create({
   },
   halfButton: {
     flex: 1,
+  },
+  readOnlyEmailContainer: {
+    marginBottom: 16,
+  },
+  readOnlyEmailBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    gap: 12,
+  },
+  readOnlyEmailText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  readOnlyEmailHelper: {
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

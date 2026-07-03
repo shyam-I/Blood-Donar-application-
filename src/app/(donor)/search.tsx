@@ -1,9 +1,8 @@
 import { Card } from '@/components/Card';
-import { Input } from '@/components/Input';
 import { DropdownPicker } from '@/components/DropdownPicker';
 import { Colors } from '@/constants/theme';
 import { getDaysSince, useAppState } from '@/context/AppState';
-import { Award, MessageSquare, Phone, Search, ShieldAlert } from 'lucide-react-native';
+import { Award, MessageSquare, Phone, ShieldAlert } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   Alert,
@@ -11,9 +10,9 @@ import {
   Linking,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
-  View,
-  Switch
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -85,20 +84,20 @@ export default function DonorSearch() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: themeColors.text }]}>Search Donors</Text>
+        <Text style={[styles.title, { color: themeColors.text }]}>Find Donors</Text>
         <Text style={[styles.subtitle, { color: themeColors.textSecondary }]}>
           Find available blood donors in your district
         </Text>
       </View>
 
       <View style={styles.searchSection}>
-        <Input
+        {/* <Input
           placeholder="Search donor by name..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           icon={<Search size={20} color={themeColors.textSecondary} />}
           containerStyle={styles.searchInput}
-        />
+        /> */}
 
         <View style={styles.row}>
           <View style={styles.col}>

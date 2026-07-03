@@ -10,6 +10,13 @@ import { mockBloodRequests } from '@/data/mockBloodRequests';
 import { mockDonations } from '@/data/mockDonations';
 import { mockNotifications } from '@/data/mockNotifications';
 
+export interface GoogleAuthData {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
 interface AppContextType {
   donors: Donor[];
   requests: EmergencyRequest[];
@@ -19,7 +26,9 @@ interface AppContextType {
   isLoading: boolean; // Add loading state for initial auth check
   
   // Auth Methods
-  login: (phoneNumber: string) => Promise<'Admin' | 'Donor' | 'Not_Found'>;
+  pendingGoogleAuth: GoogleAuthData | null;
+  setPendingGoogleAuth: (data: GoogleAuthData | null) => void;
+  loginWithGoogle: (googleUser: GoogleAuthData) => Promise<'Admin' | 'Donor' | 'New_User'>;
   logout: () => Promise<void>;
   isAuthenticated: () => boolean;
   getCurrentUser: () => UserSession | null;
@@ -33,6 +42,7 @@ interface AppContextType {
   updateLastDonationDate: (donorId: string, date: string) => void;
   toggleDonorStatus: (donorId: string) => void;
   addDonationRecord: (record: Omit<DonationHistory, 'id'>) => void;
+  deleteDonationRecord: (id: string) => void;
   markNotificationsAsRead: () => void;
 }
 
@@ -74,6 +84,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [notifications, setNotifications] = useState<AppNotification[]>(mockNotifications);
   
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [pendingGoogleAuth, setPendingGoogleAuth] = useState<GoogleAuthData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Initial Auth Check
@@ -97,28 +108,32 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadAuth();
   }, []);
 
-  const login = async (phoneNumber: string): Promise<'Admin' | 'Donor' | 'Not_Found'> => {
-    const cleanPhone = phoneNumber.replace(/[^0-9+]/g, '');
+  const loginWithGoogle = async (googleUser: GoogleAuthData): Promise<'Admin' | 'Donor' | 'New_User'> => {
+    const { email, name, id, picture } = googleUser;
     let authUser: UserSession | null = null;
-    let roleResult: 'Admin' | 'Donor' | 'Not_Found' = 'Not_Found';
+    let roleResult: 'Admin' | 'Donor' | 'New_User' = 'New_User';
 
     // Check if Admin
-    const foundAdmin = mockAdmins.find((a) => a.phoneNumber === cleanPhone);
+    const foundAdmin = mockAdmins.find((a) => a.emailAddress.toLowerCase() === email.toLowerCase());
     if (foundAdmin) {
       authUser = {
         role: 'Admin',
-        phoneNumber: foundAdmin.phoneNumber,
+        emailAddress: foundAdmin.emailAddress,
         name: foundAdmin.fullName,
+        googleId: id,
+        profilePicture: picture,
       };
       roleResult = 'Admin';
     } else {
       // Check if Donor
-      const foundDonor = donors.find((d) => d.phoneNumber === cleanPhone);
+      const foundDonor = donors.find((d) => d.emailAddress.toLowerCase() === email.toLowerCase());
       if (foundDonor) {
         authUser = {
           role: 'Donor',
-          phoneNumber: foundDonor.phoneNumber,
+          emailAddress: foundDonor.emailAddress,
           name: foundDonor.fullName,
+          googleId: id,
+          profilePicture: picture,
           donorId: foundDonor.id,
         };
         roleResult = 'Donor';
@@ -144,6 +159,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (error) {
         console.error('Failed to save auth state', error);
       }
+    } else {
+      setPendingGoogleAuth(googleUser);
     }
 
     return roleResult;
@@ -182,11 +199,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 
   const registerDonor = async (newDonor: Omit<Donor, 'id' | 'isActive' | 'totalDonations'>): Promise<boolean> => {
-    const phoneExists = donors.some(
-      (d) => d.phoneNumber === newDonor.phoneNumber
+    const emailExists = donors.some(
+      (d) => d.emailAddress.toLowerCase() === newDonor.emailAddress.toLowerCase()
     );
-    if (phoneExists) {
-      Alert.alert('Registration Failed', 'Mobile Number is already registered.');
+    if (emailExists) {
+      Alert.alert('Registration Failed', 'Email is already registered.');
       return false;
     }
 
@@ -199,6 +216,34 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setDonors((prev) => [addedDonor, ...prev]);
+
+    // Automatically authenticate the user after registration
+    const authUser: UserSession = {
+      role: 'Donor',
+      emailAddress: addedDonor.emailAddress,
+      name: addedDonor.fullName,
+      googleId: addedDonor.googleId,
+      profilePicture: addedDonor.profilePicture,
+      donorId: addedDonor.id,
+    };
+
+    const authResponse: AuthResponse = {
+      accessToken: `mock-jwt-token-${Date.now()}`,
+      refreshToken: `mock-refresh-token-${Date.now()}`,
+      expiresIn: 3600,
+      user: authUser
+    };
+
+    try {
+      await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authResponse.refreshToken);
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser));
+      
+      setCurrentUser(authUser);
+      setPendingGoogleAuth(null);
+    } catch (error) {
+      console.error('Failed to save auth state after registration', error);
+    }
 
     return true;
   };
@@ -370,6 +415,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  const deleteDonationRecord = (id: string) => {
+    setDonations((prev) => prev.filter((d) => d.id !== id));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -379,7 +428,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         notifications,
         currentUser,
         isLoading,
-        login,
+        pendingGoogleAuth,
+        setPendingGoogleAuth,
+        loginWithGoogle,
         logout,
         isAuthenticated,
         getCurrentUser,
@@ -392,6 +443,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateLastDonationDate,
         toggleDonorStatus,
         addDonationRecord,
+        deleteDonationRecord,
         markNotificationsAsRead,
       }}
     >

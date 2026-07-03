@@ -11,7 +11,8 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Shield, Phone, MapPin, Calendar, PlusCircle, History, Info } from 'lucide-react-native';
+import { User, Shield, Phone, MapPin, Calendar, History, Info, Trash2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useAppState } from '@/context/AppState';
 import { Card } from '@/components/Card';
@@ -22,7 +23,8 @@ import { DatePickerInput } from '@/components/DatePickerInput';
 export default function DonorProfile() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { currentUser, donors, donations, updateLastDonationDate, toggleDonorStatus } = useAppState();
+  const router = useRouter();
+  const { currentUser, donors, donations, toggleDonorStatus, deleteDonationRecord } = useAppState();
 
   const currentDonor = donors.find((d) => d.id === currentUser?.donorId);
   const donor = currentDonor || donors[0] || {
@@ -44,21 +46,25 @@ export default function DonorProfile() {
     totalDonations: 0,
   };
 
-  const [newDonationDate, setNewDonationDate] = useState<Date | null>(null);
-  const [loggingDonation, setLoggingDonation] = useState(false);
-
   const myHistory = donations.filter((d) => d.donorId === donor.id);
 
-  const handleLogDonation = () => {
-    if (!newDonationDate) {
-      Alert.alert('Error', 'Please select a valid date');
-      return;
-    }
+  const groupedHistory = myHistory.reduce((acc: Record<string, typeof myHistory>, h) => {
+    const d = new Date(h.donationDate);
+    const monthYear = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    if (!acc[monthYear]) acc[monthYear] = [];
+    acc[monthYear].push(h);
+    return acc;
+  }, {});
 
-    updateLastDonationDate(donor.id, newDonationDate.toISOString().split('T')[0]);
-    Alert.alert('Success', 'Blood donation logged successfully!');
-    setNewDonationDate(null);
-    setLoggingDonation(false);
+  const handleDeleteDonation = (id: string) => {
+    Alert.alert(
+      'Delete Record',
+      'Are you sure you want to delete this donation record? This is for testing purposes only.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteDonationRecord(id) },
+      ]
+    );
   };
 
   return (
@@ -95,42 +101,6 @@ export default function DonorProfile() {
           </View>
         </Card>
 
-        {/* Log Donation Card */}
-        <Card style={styles.logDonationCard}>
-          <View style={styles.cardTitleRow}>
-            <PlusCircle size={20} color={themeColors.primary} />
-            <Text style={[styles.cardTitle, { color: themeColors.text }]}>Log New Donation</Text>
-          </View>
-
-          {!loggingDonation ? (
-            <Button
-              title="Log Blood Donation"
-              onPress={() => {
-                setLoggingDonation(true);
-                setNewDonationDate(new Date());
-              }}
-              variant="outline"
-              size="small"
-            />
-          ) : (
-              <View style={styles.logForm}>
-                <DatePickerInput
-                  label="Donation Date"
-                  value={newDonationDate}
-                  onChange={setNewDonationDate}
-                />
-              <View style={styles.logActions}>
-                <Button
-                  title="Cancel"
-                  onPress={() => setLoggingDonation(false)}
-                  variant="text"
-                  style={styles.logCancelBtn}
-                />
-                <Button title="Save Record" onPress={handleLogDonation} style={styles.logSaveBtn} />
-              </View>
-            </View>
-          )}
-        </Card>
 
         {/* Personal Details Accordion/Section */}
         <Card style={styles.detailsCard}>
@@ -188,30 +158,43 @@ export default function DonorProfile() {
         <View style={styles.historySection}>
           <View style={styles.cardTitleRow}>
             <History size={20} color={themeColors.primary} />
-            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Donation Timeline</Text>
+            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Donation History</Text>
           </View>
 
-          {myHistory.length > 0 ? (
-            myHistory.map((h) => (
-              <Card key={h.id} style={styles.historyItem}>
-                <View style={styles.historyRow}>
-                  <View style={[styles.historyIconCircle, { backgroundColor: themeColors.primaryLight }]}>
-                    <Calendar size={16} color={themeColors.primary} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.historyVenue, { color: themeColors.text }]}>{h.venue}</Text>
-                    <Text style={[styles.historyDate, { color: themeColors.textSecondary }]}>
-                      {h.donationDate}
-                    </Text>
-                  </View>
-                  <Text style={[styles.historyUnits, { color: themeColors.primary }]}>+{h.units} Unit</Text>
-                </View>
-              </Card>
+          {Object.keys(groupedHistory).length > 0 ? (
+            Object.keys(groupedHistory).map((monthYear) => (
+              <View key={monthYear} style={styles.monthGroup}>
+                <Text style={[styles.monthTitle, { color: themeColors.textSecondary }]}>{monthYear}</Text>
+                {groupedHistory[monthYear].map((h) => (
+                  <Card key={h.id} style={styles.historyItem}>
+                    <View style={styles.historyRow}>
+                      <View style={[styles.historyIconCircle, { backgroundColor: themeColors.primaryLight }]}>
+                        <Calendar size={16} color={themeColors.primary} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={[styles.historyVenue, { color: themeColors.text }]}>{h.venue}</Text>
+                        <Text style={[styles.historyDate, { color: themeColors.textSecondary }]}>
+                          {h.donationDate} • {h.bloodGroup}
+                        </Text>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusText}>{h.status}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.rightActions}>
+                        <Text style={[styles.historyUnits, { color: themeColors.primary }]}>{h.units} Unit{h.units > 1 ? 's' : ''}</Text>
+                        <Pressable onPress={() => handleDeleteDonation(h.id)} style={styles.deleteBtn}>
+                          <Trash2 size={18} color="#FF3B30" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  </Card>
+                ))}
+              </View>
             ))
           ) : (
             <Card style={styles.emptyHistoryCard}>
               <Text style={[styles.emptyHistoryText, { color: themeColors.textSecondary }]}>
-                No donation history logged yet.
+                No donation history available yet.
               </Text>
             </Card>
           )}
@@ -271,35 +254,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 16,
   },
-  logDonationCard: {
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  logForm: {
-    width: '100%',
-  },
-  logActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-    gap: 10,
-  },
-  logCancelBtn: {
-    width: 80,
-  },
-  logSaveBtn: {
-    width: 120,
-  },
+
   detailsCard: {
     padding: 16,
     marginBottom: 20,
@@ -324,12 +279,31 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(141, 153, 174, 0.1)',
     marginVertical: 10,
   },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
   historySection: {
     marginTop: 10,
   },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '800',
+  },
+  monthGroup: {
+    marginBottom: 16,
+  },
+  monthTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+    marginLeft: 4,
   },
   historyItem: {
     padding: 14,
@@ -351,12 +325,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   historyDate: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
+    marginBottom: 4,
+  },
+  statusBadge: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    color: '#34C759',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  rightActions: {
+    alignItems: 'flex-end',
+    gap: 6,
+    flexDirection: 'row',
+  },
+  deleteBtn: {
+    padding: 4,
   },
   historyUnits: {
     fontSize: 13,
     fontWeight: '800',
+    marginRight: 4,
   },
   emptyHistoryCard: {
     padding: 20,

@@ -13,64 +13,52 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function LoginScreen() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { login, donors } = useAppState();
+  const { loginWithGoogle, donors } = useAppState();
 
-  const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Mock OTP State
-  const [showOtp, setShowOtp] = useState(false);
-  const [otp, setOtp] = useState('');
-
-  const handleLogin = async () => {
-    if (!identifier) {
-      setError('Mobile number is required');
-      return;
-    }
+  const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
 
-    if (!showOtp) {
-      // Step 1: User entered Mobile Number and clicks Continue.
-      // Move to OTP simulation step.
-      setTimeout(() => {
-        setLoading(false);
-        setShowOtp(true);
-      }, 500);
-      return;
-    }
+    // Mock Google Sign-In Payload
+    const mockGoogleUser = {
+      id: `google_${Date.now()}`,
+      email: 'new.donor@gmail.com', // Change this to test different scenarios
+      name: 'Google User',
+      picture: 'https://via.placeholder.com/150',
+    };
 
-    // Step 2: Verify OTP
-    if (otp !== '123456') {
-      setLoading(false);
-      setError('Invalid OTP. Use 123456');
-      return;
-    }
-
-    // Step 3: Search mock database using Mobile Number
     setTimeout(async () => {
-      const result = await login(identifier);
+      const result = await loginWithGoogle(mockGoogleUser);
       setLoading(false);
-      if (result === 'Not_Found') {
-        // Not Found -> Redirect to Registration
-        Alert.alert('Not Registered', 'Mobile number not found. Redirecting to registration.');
+      
+      if (result === 'New_User') {
+        Alert.alert('Not Registered', 'Redirecting to registration...');
         router.replace('/register');
       }
       // If result is Admin or Donor, useProtectedRoute will handle the redirect automatically.
     }, 1000);
   };
 
-  const handleQuickFillAdmin = (adminPhone: string) => {
-    setIdentifier(adminPhone);
-    setShowOtp(false);
-    setOtp('');
+  const handleQuickFillAdmin = () => {
+    // Override the mock payload to simulate an admin login
+    const adminGoogleUser = {
+      id: `google_admin`,
+      email: 'admin1@rotaract.org', 
+      name: 'Admin Rajesh',
+    };
+    loginWithGoogle(adminGoogleUser);
   };
 
-  const handleQuickFillDonor = (donorPhone: string) => {
-    setIdentifier(donorPhone);
-    setShowOtp(false);
-    setOtp('');
+  const handleQuickFillDonor = (emailAddress: string, fullName: string) => {
+    const donorGoogleUser = {
+      id: `google_donor_${Date.now()}`,
+      email: emailAddress, 
+      name: fullName,
+    };
+    loginWithGoogle(donorGoogleUser);
   };
 
   return (
@@ -102,19 +90,13 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          {/* Role Selector Visually Kept to Avoid Redesigning UI */}
           <View style={[styles.tabContainer, { backgroundColor: themeColors.backgroundElement }]}>
-            <Pressable
+            <View
               style={[
                 styles.tab,
                 styles.activeTab,
                 { backgroundColor: themeColors.card },
               ]}
-              onPress={() => {
-                setShowOtp(false);
-                setIdentifier('');
-                setError('');
-              }}
             >
               <User size={18} color={themeColors.primary} />
               <Text
@@ -128,57 +110,15 @@ export default function LoginScreen() {
               >
                 LOGIN
               </Text>
-            </Pressable>
+            </View>
           </View>
 
           {/* Form */}
           <Card style={[styles.formCard, { borderRadius: 24 }]}>
-            {!showOtp ? (
-              <Input
-                label="Mobile Number"
-                placeholder="Enter your mobile number"
-                value={identifier}
-                onChangeText={setIdentifier}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                error={error}
-                icon={<Phone size={20} color={themeColors.textSecondary} />}
-              />
-            ) : (
-              <Input
-                label="Enter OTP (Mock: 123456)"
-                placeholder="123456"
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="numeric"
-                error={error}
-                icon={<Key size={20} color={themeColors.textSecondary} />}
-              />
-            )}
-
-            <Button
-              title={showOtp ? "Verify & Login" : "Continue"}
-              onPress={handleLogin}
-              loading={loading}
-              style={styles.loginButton}
-            />
-
-            {/* OR Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.orText}>OR</Text>
-              <View style={styles.divider} />
-            </View>
-
             {/* Google Login Button */}
             <Pressable
               style={styles.googleButton}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Google Sign-In will be available after backend integration."
-                )
-              }
+              onPress={handleGoogleLogin}
             >
               <FontAwesome
                 name="google"
@@ -209,7 +149,7 @@ export default function LoginScreen() {
             <View style={styles.quickCardContainer}>
               <Pressable
                 style={[styles.quickPill, { backgroundColor: themeColors.backgroundElement }]}
-                onPress={() => handleQuickFillAdmin('9000000001')}
+                onPress={handleQuickFillAdmin}
               >
                 <Shield size={14} color={themeColors.primary} />
                 <Text style={[styles.quickPillText, { color: themeColors.text }]}>Admin</Text>
@@ -219,7 +159,7 @@ export default function LoginScreen() {
                 <Pressable
                   key={d.id}
                   style={[styles.quickPill, { backgroundColor: themeColors.backgroundElement }]}
-                  onPress={() => handleQuickFillDonor(d.phoneNumber)}
+                  onPress={() => handleQuickFillDonor(d.emailAddress, d.fullName)}
                 >
                   <User size={14} color={themeColors.primary} />
                   <Text style={[styles.quickPillText, { color: themeColors.text, fontWeight: '600' }]}>

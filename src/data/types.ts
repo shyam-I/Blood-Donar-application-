@@ -1,9 +1,12 @@
 export interface Donor {
   id: string;
   fullName: string;
-  phoneNumber: string; // Used for Login
-  emailAddress: string; // Used for Communication only
-  age: number; // Used to validate if 18-65
+  phoneNumber: string; // Contact number
+  emailAddress: string; // Used for Login (Google Email)
+  googleId?: string; // Auto-captured from Google
+  profilePicture?: string; // Auto-captured from Google
+  dob: string; // ISO string or YYYY-MM-DD
+  age: number; // Calculated from dob
   gender: string;
   profession: string;
   address: string;
@@ -14,7 +17,7 @@ export interface Donor {
   
   // Medical Info
   bloodGroup: string;
-  lastDonationDate: string; // ISO string or YYYY-MM-DD
+  lastDonationDate: string; // ISO string or YYYY-MM-DD, or 'Never'
   healthIssues: string;
   parentContact: string; // Emergency Contact Name
   emergencyNumber: string; // Emergency Contact Number
@@ -27,8 +30,8 @@ export interface Donor {
 export interface Admin {
   id: string;
   fullName: string;
-  phoneNumber: string; // Used for Login
-  emailAddress: string;
+  phoneNumber: string; 
+  emailAddress: string; // Used for Login
 }
 
 export interface EmergencyRequest {
@@ -83,8 +86,10 @@ export interface AppSettings {
 
 export interface UserSession {
   role: 'Admin' | 'Donor';
-  phoneNumber: string;
+  emailAddress: string;
   name: string;
+  googleId?: string;
+  profilePicture?: string;
   donorId?: string; // If role is Donor
   accessToken?: string;
   refreshToken?: string;
