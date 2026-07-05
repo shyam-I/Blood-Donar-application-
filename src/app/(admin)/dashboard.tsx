@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, useColorScheme } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Users, Heart, AlertCircle, Calendar, LogOut } from 'lucide-react-native';
+import { Users, Heart, AlertCircle, Calendar, LogOut, Download, X } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Button } from '@/components/Button';
 import { Colors } from '@/constants/theme';
 import { useAppState, getDaysSince } from '@/context/AppState';
 import { Card } from '@/components/Card';
@@ -11,7 +13,26 @@ import { BarChart, BloodDistributionGrid, ClubLeaderboard } from '@/components/C
 export default function AdminDashboard() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { donors, requests, donations, currentUser, logout, approveBloodRequest, rejectBloodRequest } = useAppState();
+  const { currentUser, donors, requests, donations, logout, downloadDonationReport } = useAppState();
+
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  
+  const handleDownloadReport = () => {
+    if (!fromDate || !toDate) {
+      Alert.alert("Validation Error", "Please select both From and To dates.");
+      return;
+    }
+    if (fromDate > toDate) {
+      Alert.alert("Validation Error", "From Date cannot be greater than To Date.");
+      return;
+    }
+    downloadDonationReport(fromDate.toISOString(), toDate.toISOString());
+    setReportModalVisible(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -129,6 +150,15 @@ export default function AdminDashboard() {
           </Card>
         </View>
 
+        {/* Download Report Button */}
+        <View style={{ marginBottom: 20 }}>
+          <Button 
+            title="Download Donation Report" 
+            onPress={() => setReportModalVisible(true)}
+            icon={<Download size={18} color="#FFF" />}
+          />
+        </View>
+
         {/* Monthly Donation Statistics */}
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Monthly Donation Trend</Text>
         <Card style={styles.chartCard}>
@@ -175,6 +205,98 @@ export default function AdminDashboard() {
           ))}
         </View>
       </ScrollView>
+
+      {/* Download Report Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={reportModalVisible}
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Generate Report</Text>
+              <Pressable onPress={() => setReportModalVisible(false)} style={styles.closeBtn}>
+                <X size={20} color={themeColors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={[styles.modalSubtitle, { color: themeColors.textSecondary }]}>
+                Select the date range for the donation report.
+              </Text>
+
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 8, color: themeColors.text }}>From Date</Text>
+                <Pressable 
+                  style={styles.dateField} 
+                  onPress={() => {
+                    setShowToPicker(false);
+                    setShowFromPicker(true);
+                  }}
+                >
+                  <Text style={{ color: fromDate ? themeColors.text : themeColors.textSecondary }}>
+                    {fromDate ? fromDate.toLocaleDateString() : 'Select From Date'}
+                  </Text>
+                  <Calendar size={18} color={themeColors.textSecondary} />
+                </Pressable>
+                {showFromPicker && (
+                  <DateTimePicker
+                    value={fromDate || new Date()}
+                    mode="date"
+                    display="default"
+                    onValueChange={(event: any, date?: Date) => {
+                      setShowFromPicker(false);
+                      if (date) {
+                        setFromDate(date);
+                      }
+                    }}
+                    onDismiss={() => setShowFromPicker(false)}
+                  />
+                )}
+              </View>
+
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 8, color: themeColors.text }}>To Date</Text>
+                <Pressable 
+                  style={styles.dateField} 
+                  onPress={() => {
+                    setShowFromPicker(false);
+                    setShowToPicker(true);
+                  }}
+                >
+                  <Text style={{ color: toDate ? themeColors.text : themeColors.textSecondary }}>
+                    {toDate ? toDate.toLocaleDateString() : 'Select To Date'}
+                  </Text>
+                  <Calendar size={18} color={themeColors.textSecondary} />
+                </Pressable>
+                {showToPicker && (
+                  <DateTimePicker
+                    value={toDate || new Date()}
+                    mode="date"
+                    display="default"
+                    onValueChange={(event: any, date?: Date) => {
+                      setShowToPicker(false);
+                      if (date) {
+                        setToDate(date);
+                      }
+                    }}
+                    onDismiss={() => setShowToPicker(false)}
+                  />
+                )}
+              </View>
+
+              <Button 
+                title="Download" 
+                onPress={handleDownloadReport} 
+                disabled={!fromDate || !toDate} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -305,4 +427,53 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  modalBody: {
+    width: '100%',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  dateField: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#F8FAFC',
+  }
 });

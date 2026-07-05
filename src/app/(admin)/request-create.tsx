@@ -27,14 +27,16 @@ export default function CreateEmergencyRequest() {
   const { createBloodRequest } = useAppState();
 
   const [patientName, setPatientName] = useState('');
+  const [patientAge, setPatientAge] = useState('');
   const [hospitalName, setHospitalName] = useState('');
+  const [locationLink, setLocationLink] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
   const [unitsRequired, setUnitsRequired] = useState(1);
-  const [contactNumber, setContactNumber] = useState('');
+  const [contactNumber1, setContactNumber1] = useState('');
+  const [contactNumber2, setContactNumber2] = useState('');
+  const [contactNumber3, setContactNumber3] = useState('');
+  const [medicalCondition, setMedicalCondition] = useState('');
   const [requiredByDate, setRequiredByDate] = useState<Date | null>(null);
-  const [requiredByTime, setRequiredByTime] = useState<Date | null>(null);
-  const [emergencyLevel, setEmergencyLevel] = useState('Critical');
-  const [notes, setNotes] = useState('');
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -42,11 +44,12 @@ export default function CreateEmergencyRequest() {
     const tempErrors: Record<string, string> = {};
 
     if (!patientName.trim()) tempErrors.patientName = 'Patient Name is required';
+    if (!patientAge.trim() || isNaN(Number(patientAge))) tempErrors.patientAge = 'Enter a valid age';
     if (!hospitalName.trim()) tempErrors.hospitalName = 'Hospital Name is required';
     if (!bloodGroup.trim()) tempErrors.bloodGroup = 'Select a blood group';
     
-    if (!contactNumber.trim() || contactNumber.length < 10) {
-      tempErrors.contactNumber = 'Enter a valid contact number';
+    if (!contactNumber1.trim() || contactNumber1.length < 10) {
+      tempErrors.contactNumber1 = 'Enter a valid primary contact number';
     }
 
     if (!requiredByDate) {
@@ -60,26 +63,38 @@ export default function CreateEmergencyRequest() {
   const handleBroadcast = () => {
     if (!validateForm()) return;
 
+    const fullNotes = JSON.stringify({
+      age: patientAge,
+      condition: medicalCondition
+    });
+
+    const allContacts = [contactNumber1, contactNumber2, contactNumber3]
+      .filter(c => c && c.trim().length > 0)
+      .join(', ');
+
     createBloodRequest({
       patientName,
       hospitalName,
+      hospitalAddress: locationLink,
       bloodGroup,
       unitsRequired,
-      contactNumber,
+      contactNumber: allContacts,
       requiredByDate: requiredByDate ? requiredByDate.toISOString().split('T')[0] : '',
-      emergencyLevel: emergencyLevel as any,
-      notes,
+      notes: fullNotes,
     });
 
     // Clear form
     setPatientName('');
+    setPatientAge('');
     setHospitalName('');
+    setLocationLink('');
     setBloodGroup('');
     setUnitsRequired(1);
-    setContactNumber('');
+    setContactNumber1('');
+    setContactNumber2('');
+    setContactNumber3('');
+    setMedicalCondition('');
     setRequiredByDate(null);
-    setRequiredByTime(null);
-    setNotes('');
 
     // Go back to dashboard
     router.replace('/(admin)/dashboard');
@@ -116,14 +131,13 @@ export default function CreateEmergencyRequest() {
               error={errors.patientName}
             />
 
-            <DropdownPicker
-              label="Hospital Name"
-              placeholder="Select Hospital"
-              value={hospitalName}
-              options={hospitals}
-              onSelect={setHospitalName}
-              searchable={true}
-              error={errors.hospitalName}
+            <Input
+              label="Age"
+              placeholder="e.g. 35"
+              value={patientAge}
+              onChangeText={(text) => setPatientAge(text.replace(/[^0-9]/g, '').slice(0, 3))}
+              keyboardType="number-pad"
+              error={errors.patientAge}
             />
 
             <DropdownPicker
@@ -143,52 +157,64 @@ export default function CreateEmergencyRequest() {
               max={50}
             />
 
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <DatePickerInput
-                  label="Required By Date"
-                  value={requiredByDate}
-                  onChange={setRequiredByDate}
-                />
-                {errors.requiredByDate && <Text style={[styles.errorText, { color: themeColors.error, marginTop: -12 }]}>{errors.requiredByDate}</Text>}
-              </View>
-              <View style={styles.col}>
-                <TimePickerInput
-                  label="Required By Time"
-                  value={requiredByTime}
-                  onChange={setRequiredByTime}
-                />
-              </View>
-            </View>
-
             <Input
-              label="Coordinator Contact Number"
-              placeholder="e.g. 9876598765"
-              value={contactNumber}
-              onChangeText={(text) => setContactNumber(text.replace(/[^0-9]/g, '').slice(0, 10))}
-              keyboardType="number-pad"
-              error={errors.contactNumber}
-            />
-
-            <Text style={[styles.selectorLabel, { color: themeColors.textSecondary }]}>
-              Emergency Level
-            </Text>
-            <SegmentedControl
-              options={emergencyLevels}
-              selectedValue={emergencyLevel}
-              onSelect={setEmergencyLevel}
-            />
-            <View style={{ marginBottom: 16 }} />
-
-            <Input
-              label="Additional Medical Notes (Optional)"
-              placeholder="e.g. Heart surgery. Immediate requirement."
-              value={notes}
-              onChangeText={setNotes}
+              label="Problem / Medical Condition"
+              placeholder="e.g. Heart Surgery, Dengue, Accident"
+              value={medicalCondition}
+              onChangeText={setMedicalCondition}
               multiline
               numberOfLines={2}
               inputStyle={{ height: 60, textAlignVertical: 'top' }}
             />
+
+            <Input
+              label="Contact Number 1"
+              placeholder="e.g. 9876598765"
+              value={contactNumber1}
+              onChangeText={(text) => setContactNumber1(text.replace(/[^0-9]/g, '').slice(0, 10))}
+              keyboardType="number-pad"
+              error={errors.contactNumber1}
+            />
+            
+            <Input
+              label="Contact Number 2 (Optional)"
+              placeholder="e.g. 9876543210"
+              value={contactNumber2}
+              onChangeText={(text) => setContactNumber2(text.replace(/[^0-9]/g, '').slice(0, 10))}
+              keyboardType="number-pad"
+            />
+            
+            <Input
+              label="Contact Number 3 (Optional)"
+              placeholder="e.g. 9111122222"
+              value={contactNumber3}
+              onChangeText={(text) => setContactNumber3(text.replace(/[^0-9]/g, '').slice(0, 10))}
+              keyboardType="number-pad"
+            />
+
+            <DropdownPicker
+              label="Hospital Name"
+              placeholder="Select Hospital"
+              value={hospitalName}
+              options={hospitals}
+              onSelect={setHospitalName}
+              searchable={true}
+              error={errors.hospitalName}
+            />
+
+            <Input
+              label="Location Link (Optional)"
+              placeholder="Google Maps URL"
+              value={locationLink}
+              onChangeText={setLocationLink}
+            />
+
+            <DatePickerInput
+              label="Required Date"
+              value={requiredByDate}
+              onChange={setRequiredByDate}
+            />
+            {errors.requiredByDate && <Text style={[styles.errorText, { color: themeColors.error }]}>{errors.requiredByDate}</Text>}
 
             <Button
               title="Broadcast Emergency Request"

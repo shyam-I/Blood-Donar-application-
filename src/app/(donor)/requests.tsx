@@ -24,7 +24,6 @@ export default function EmergencyRequests() {
 
   const [activeTab, setActiveTab] = useState<'Active' | 'Fulfilled'>('Active');
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const [modalVisible, setModalVisible] = useState(false);
 
   // Mark notifications as read when entering this screen
   React.useEffect(() => {
@@ -54,7 +53,7 @@ export default function EmergencyRequests() {
   const isEligible = donor.lastDonationDate === 'Never' || daysSince >= 60;
 
   const filteredRequests = (requests || []).filter((r) =>
-    activeTab === 'Active' ? (r.status === 'Approved' || r.status === 'Partially Filled') : r.status === 'Completed' || r.status === 'Closed'
+    activeTab === 'Active' ? r.status === 'Pending' : r.status === 'Completed'
   );
 
   const handleCall = (phone: string, name: string) => {
@@ -79,25 +78,7 @@ export default function EmergencyRequests() {
     );
   };
 
-  const handleDonateIntent = (req: any) => {
-    setSelectedRequest(req);
-    setModalVisible(true);
-  };
 
-const confirmDonation = () => {
-  const request = selectedRequest;
-
-  if (!request) return;
-
-  acceptBloodRequest(request.id, donor.id);
-  setModalVisible(false);
-
-  Alert.alert(
-    'Thank You!',
-    `Your request to donate ${donor.bloodGroup} blood for ${request.patientName} has been registered. The coordinator has been notified and will contact you shortly.`,
-    [{ text: 'OK' }]
-  );
-};
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top', 'left', 'right']}>
@@ -127,7 +108,7 @@ const confirmDonation = () => {
               },
             ]}
           >
-            Active Alerts ({requests.filter((r) => r.status === 'Approved' || r.status === 'Partially Filled').length})
+            Active Alerts ({requests.filter((r) => r.status === 'Pending').length})
           </Text>
         </Pressable>
 
@@ -147,7 +128,7 @@ const confirmDonation = () => {
               },
             ]}
           >
-            Fulfilled ({requests.filter((r) => r.status === 'Completed' || r.status === 'Closed').length})
+            Fulfilled ({requests.filter((r) => r.status === 'Completed').length})
           </Text>
         </Pressable>
       </View>
@@ -159,11 +140,21 @@ const confirmDonation = () => {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const hasAccepted = item.acceptedDonors?.includes(donor.id);
+          const isInterested = item.interestedDonors?.includes(donor.id);
+          const isApproved = item.approvedDonors?.includes(donor.id);
+          
+          let parsedNotes: any = null;
+          if (item.notes) {
+            try {
+              parsedNotes = JSON.parse(item.notes);
+            } catch (e) {
+              parsedNotes = { notes: item.notes };
+            }
+          }
           
           return (
           <Card
-            variant={item.status === 'Approved' || item.status === 'Partially Filled' ? 'emergency' : 'default'}
+            variant={item.status === 'Pending' ? 'emergency' : 'default'}
             style={styles.requestCard}
           >
             <View style={styles.cardHeader}>
@@ -172,7 +163,7 @@ const confirmDonation = () => {
               </View>
               <View style={styles.headerInfo}>
                 <Text style={[styles.patientName, { color: themeColors.text }]}>
-                  Patient: {item.patientName}
+                  Patient: {isApproved ? item.patientName : "Hidden for Privacy"}
                 </Text>
                 <View style={styles.metaRow}>
                   <Calendar size={13} color={themeColors.textSecondary} />
@@ -190,9 +181,19 @@ const confirmDonation = () => {
                   {item.hospitalName}
                 </Text>
               </View>
-              {item.notes && (
+              {isApproved && parsedNotes && parsedNotes.age && (
+                <Text style={{ fontSize: 13, color: themeColors.text, marginBottom: 4, fontWeight: '500' }}>
+                  Age: <Text style={{ fontWeight: '400' }}>{parsedNotes.age}</Text>
+                </Text>
+              )}
+              {isApproved && parsedNotes && parsedNotes.condition && (
+                <Text style={{ fontSize: 13, color: themeColors.text, marginBottom: 4, fontWeight: '500' }}>
+                  Condition: <Text style={{ fontWeight: '400' }}>{parsedNotes.condition}</Text>
+                </Text>
+              )}
+              {parsedNotes && parsedNotes.notes && (
                 <Text style={[styles.notesText, { color: themeColors.textSecondary }]}>
-                  &quot;{item.notes}&quot;
+                  &quot;{parsedNotes.notes}&quot;
                 </Text>
               )}
 
@@ -211,33 +212,72 @@ const confirmDonation = () => {
               </View>
             </View>
 
-            {(item.status === 'Approved' || item.status === 'Partially Filled') && (
-              <View style={[styles.cardFooter, { borderTopColor: themeColors.border }]}>
-                <Button
-                  title={hasAccepted ? "✓ Accepted" : "I Can Donate"}
-                  onPress={() => !hasAccepted && handleDonateIntent(item)}
-                  size="small"
-                  style={styles.donateBtn}
-                  icon={hasAccepted ? undefined : <Heart size={16} color="#FFFFFF" fill="#FFFFFF" />}
-                  disabled={hasAccepted}
-                />
-
-                <Pressable
-                  style={[styles.iconBtn, { backgroundColor: themeColors.backgroundElement }]}
-                  onPress={() => handleCall(item.contactNumber, item.patientName)}
-                >
-                  <Phone size={16} color={themeColors.text} />
-                </Pressable>
-
-                <Pressable
-                  style={[styles.iconBtn, { backgroundColor: themeColors.backgroundElement }]}
-                  onPress={() => handleShare(item)}
-                >
-                  <Share2 size={16} color={themeColors.text} />
-                </Pressable>
+            {item.status === 'Pending' && (
+              <View style={[styles.cardFooter, { borderTopColor: themeColors.border, flexDirection: 'column' }]}>
+                {!isApproved ? (
+                  <>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <Button
+                        title={isInterested ? "✓ Interest Submitted" : "I Can Donate"}
+                        onPress={() => {
+                          if (!isInterested) {
+                            Alert.alert(
+                              "Confirm Availability", 
+                              "Are you sure you are available to donate blood for this request?", 
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Confirm", onPress: () => acceptBloodRequest(item.id, donor.id) }
+                              ]
+                            );
+                          }
+                        }}
+                        size="small"
+                        style={styles.donateBtn}
+                        icon={isInterested ? undefined : <Heart size={16} color="#FFFFFF" fill="#FFFFFF" />}
+                        disabled={isInterested}
+                      />
+                      <Pressable
+                        style={[styles.iconBtn, { backgroundColor: themeColors.backgroundElement }]}
+                        onPress={() => handleShare(item)}
+                      >
+                        <Share2 size={16} color={themeColors.text} />
+                      </Pressable>
+                    </View>
+                    {isInterested && (
+                      <Text style={{ fontSize: 12, color: themeColors.textSecondary, textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>
+                        Your interest has been submitted successfully. Please wait while the BloodConnect Admin reviews your availability.
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Button
+                      title="Call Contact"
+                      onPress={() => handleCall(item.contactNumber, item.patientName)}
+                      size="small"
+                      style={styles.donateBtn}
+                      icon={<Phone size={16} color="#FFFFFF" />}
+                    />
+                    {item.hospitalAddress && item.hospitalAddress.includes('http') && (
+                      <Button
+                        title="Open Map"
+                        onPress={() => Linking.openURL(item.hospitalAddress!)}
+                        size="small"
+                        style={styles.donateBtn}
+                        icon={<MapPin size={16} color="#FFFFFF" />}
+                      />
+                    )}
+                    <Pressable
+                      style={[styles.iconBtn, { backgroundColor: themeColors.backgroundElement }]}
+                      onPress={() => handleShare(item)}
+                    >
+                      <Share2 size={16} color={themeColors.text} />
+                    </Pressable>
+                  </View>
+                )}
               </View>
             )}
-            {(item.status === 'Completed' || item.status === 'Closed') && (
+            {item.status === 'Completed' && (
               <View style={styles.fulfilledBanner}>
                 <CheckCircle2 size={16} color={themeColors.success} />
                 <Text style={[styles.fulfilledText, { color: themeColors.success }]}>
@@ -256,67 +296,6 @@ const confirmDonation = () => {
         }
       />
 
-      {/* Donation Eligibility Modal */}
-      {selectedRequest && (
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={modalVisible}
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: themeColors.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>Confirm Donation</Text>
-                <Pressable onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-                  <X size={20} color={themeColors.text} />
-                </Pressable>
-              </View>
-
-              <View style={styles.modalBody}>
-                <Text style={[styles.modalSubtitle, { color: themeColors.textSecondary }]}>
-                  You are responding to the emergency request for {selectedRequest?.patientName} ({selectedRequest?.bloodGroup}).
-                </Text>
-
-                <Card style={styles.eligibilityReport}>
-                  <View style={styles.eligibilityReportRow}>
-                    <ShieldCheck size={24} color={isEligible ? themeColors.success : themeColors.error} />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={[styles.reportTitle, { color: themeColors.text }]}>
-                        {isEligible ? 'Eligibility Verified' : 'Eligibility Restriction'}
-                      </Text>
-                      <Text style={[styles.reportDesc, { color: themeColors.textSecondary }]}>
-                        {isEligible
-                          ? `Your blood group is ${donor?.bloodGroup}. You are eligible to donate.`
-                          : `You last donated on ${donor?.lastDonationDate}. You must wait 60 days between donations.`}
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-
-                {isEligible ? (
-                  <View style={styles.modalActions}>
-                    <Button title="Confirm Availability" onPress={confirmDonation} style={styles.modalConfirmBtn} />
-                    <Button
-                      title="Cancel"
-                      onPress={() => setModalVisible(false)}
-                      variant="outline"
-                      style={styles.modalCancelBtn}
-                    />
-                  </View>
-                ) : (
-                  <View style={styles.modalActions}>
-                    <Text style={[styles.cooldownAlert, { color: themeColors.error }]}>
-                      For your health safety, you cannot donate yet. Cooldown remaining: {60 - daysSince} days.
-                    </Text>
-                    <Button title="Close" onPress={() => setModalVisible(false)} style={styles.modalConfirmBtn} />
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </SafeAreaView>
   );
 }

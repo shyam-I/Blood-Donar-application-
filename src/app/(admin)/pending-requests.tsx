@@ -6,13 +6,14 @@ import { AlertCircle, LogOut, ArrowLeft } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useAppState } from '@/context/AppState';
 import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
 
 export default function PendingRequestsScreen() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { requests, approveBloodRequest, rejectBloodRequest } = useAppState();
+  const { requests, donors, deleteBloodRequest, markRequestComplete, markRequestPending, approveInterestedDonor } = useAppState();
 
-  const pendingRequestsList = requests.filter((r) => r.status === 'Pending');
+  const requestsList = requests;
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   return (
@@ -22,15 +23,15 @@ export default function PendingRequestsScreen() {
           <ArrowLeft size={24} color={themeColors.text} />
         </Pressable>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: themeColors.text }]}>Pending Requests</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.text }]}>Manage Requests</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.recentContainer}>
-          {pendingRequestsList.length > 0 ? (
-            pendingRequestsList.map((r) => (
+          {requestsList.length > 0 ? (
+            requestsList.map((r) => (
               <Pressable key={r.id} onPress={() => setSelectedRequest(r)}>
                 <Card style={styles.recentCard}>
                   <View style={styles.recentHeader}>
@@ -44,8 +45,8 @@ export default function PendingRequestsScreen() {
                       </Text>
                     </View>
                     <View style={styles.recentDateContainer}>
-                      <AlertCircle size={12} color={themeColors.error} />
-                      <Text style={[styles.recentDate, { color: themeColors.error }]}>Pending</Text>
+                      <AlertCircle size={12} color={r.status === 'Pending' ? themeColors.error : themeColors.success} />
+                      <Text style={[styles.recentDate, { color: r.status === 'Pending' ? themeColors.error : themeColors.success }]}>{r.status}</Text>
                     </View>
                   </View>
                 </Card>
@@ -53,7 +54,7 @@ export default function PendingRequestsScreen() {
             ))
           ) : (
             <Text style={{ color: themeColors.textSecondary, textAlign: 'center', padding: 20 }}>
-              No pending blood requests.
+              No blood requests found.
             </Text>
           )}
         </View>
@@ -118,21 +119,72 @@ export default function PendingRequestsScreen() {
                     <Text style={{ color: themeColors.textSecondary, fontSize: 14, marginBottom: 4 }}>Notes</Text>
                     <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>{selectedRequest.notes || 'None'}</Text>
                   </View>
+
+                  {/* Interested Donors Section */}
+                  {selectedRequest.interestedDonors && selectedRequest.interestedDonors.length > 0 && (
+                    <View style={{ marginTop: 12, marginBottom: 12 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: themeColors.text, marginBottom: 8 }}>Interested Donors</Text>
+                      {selectedRequest.interestedDonors.map((donorId: string) => {
+                        const d = donors.find((d: any) => d.id === donorId);
+                        if (!d) return null;
+                        return (
+                          <View key={donorId} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(141, 153, 174, 0.1)', padding: 12, borderRadius: 12, marginBottom: 8 }}>
+                            <View>
+                              <Text style={{ fontWeight: '600', color: themeColors.text }}>{d.fullName}</Text>
+                              <Text style={{ fontSize: 12, color: themeColors.textSecondary, marginTop: 2 }}>{d.phoneNumber} • {d.bloodGroup}</Text>
+                              <Text style={{ fontSize: 12, color: themeColors.success, marginTop: 2, fontWeight: '600' }}>Eligible Status: Verified</Text>
+                            </View>
+                            <Button title="Approve" onPress={() => {
+                              approveInterestedDonor(selectedRequest.id, donorId);
+                              setSelectedRequest((prev: any) => ({ ...prev, interestedDonors: prev.interestedDonors.filter((id: string) => id !== donorId), approvedDonors: [...(prev.approvedDonors || []), donorId], unitsAccepted: prev.unitsAccepted + 1 }));
+                            }} size="small" />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Approved Donors Section */}
+                  {selectedRequest.approvedDonors && selectedRequest.approvedDonors.length > 0 && (
+                    <View style={{ marginTop: 12, marginBottom: 12 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: themeColors.text, marginBottom: 8 }}>Approved Donors</Text>
+                      {selectedRequest.approvedDonors.map((donorId: string) => {
+                        const d = donors.find((d: any) => d.id === donorId);
+                        if (!d) return null;
+                        return (
+                          <View key={donorId} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 12, marginBottom: 8 }}>
+                            <Text style={{ fontWeight: '600', color: themeColors.success }}>{d.fullName}</Text>
+                            <Text style={{ fontSize: 12, color: themeColors.text, marginTop: 2 }}>{d.phoneNumber} • {d.bloodGroup}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
                   <Pressable 
                     style={{ flex: 1, backgroundColor: 'rgba(239, 35, 60, 0.1)', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
-                    onPress={() => { rejectBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
+                    onPress={() => { deleteBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
                   >
-                    <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Reject</Text>
+                    <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Delete</Text>
                   </Pressable>
-                  <Pressable 
-                    style={{ flex: 1, backgroundColor: themeColors.success, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
-                    onPress={() => { approveBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
-                  >
-                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Approve</Text>
-                  </Pressable>
+                  
+                  {selectedRequest.status === 'Pending' ? (
+                    <Pressable 
+                      style={{ flex: 1, backgroundColor: themeColors.success, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                      onPress={() => { markRequestComplete(selectedRequest.id); setSelectedRequest(null); }}
+                    >
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Complete</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable 
+                      style={{ flex: 1, backgroundColor: themeColors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                      onPress={() => { markRequestPending(selectedRequest.id); setSelectedRequest(null); }}
+                    >
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Mark Pending</Text>
+                    </Pressable>
+                  )}
                 </View>
               </ScrollView>
             </View>

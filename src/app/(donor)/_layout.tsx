@@ -67,12 +67,6 @@ export default function DonorLayout() {
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="request-create"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }

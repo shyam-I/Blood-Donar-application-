@@ -1,8 +1,7 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { useColorScheme, Platform } from 'react-native';
-import { LayoutDashboard, Users, PlusCircle, Send, ClipboardList } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
+import { Tabs } from 'expo-router';
+import { ClipboardList, LayoutDashboard, PlusCircle, Send, Users } from 'lucide-react-native';
+import { Platform } from 'react-native';
 
 export default function AdminLayout() {
   let colorScheme = 'light' as 'light' | 'dark';

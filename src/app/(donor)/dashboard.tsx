@@ -1,12 +1,11 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, useColorScheme, FlatList } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Heart, Calendar, Award, AlertTriangle, ChevronRight, Bell } from 'lucide-react-native';
-import { Colors } from '@/constants/theme';
-import { useAppState, getDaysSince } from '@/context/AppState';
-import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { Colors } from '@/constants/theme';
+import { getDaysSince, useAppState } from '@/context/AppState';
+import { router } from 'expo-router';
+import { AlertTriangle, Award, Bell, Calendar, ChevronRight, Heart } from 'lucide-react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function DonorDashboard() {
   let colorScheme = 'light' as 'light' | 'dark';
@@ -41,7 +40,7 @@ export default function DonorDashboard() {
   const daysRemaining = Math.max(0, 60 - daysSince);
   const eligibilityProgress = isEligible ? 1 : daysSince / 60;
 
-  const activeRequests = requests.filter((r) => r.status === 'Open');
+  const activeRequests = requests.filter((r) => r.status === 'Pending');
   const unreadNotifications = notifications.filter((n) => !n.read);
 
   const handleLogout = () => {
@@ -160,14 +159,13 @@ export default function DonorDashboard() {
           </View>
         </Card>
 
-        {/* Request Blood Action */}
-        <Button
+        {/* <Button
           title="Request Blood"
-          onPress={() => router.push('/(donor)/request-create')}
+          onPress={() => Alert.alert('Contact Admin', 'Blood requirements are handled directly by the Admin. Please contact the BloodConnect Admin via phone or WhatsApp to submit a blood request.')}
           size="large"
           style={{ marginBottom: 20 }}
           icon={<Heart size={20} color="#FFFFFF" fill="#FFFFFF" />}
-        />
+        /> */}
 
         {/* Quick Stats Grid */}
         <View style={styles.statsGrid}>

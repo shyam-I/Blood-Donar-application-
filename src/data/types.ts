@@ -44,7 +44,8 @@ export interface EmergencyRequest {
   unitsRequired: number;
   unitsAccepted: number;
   remainingUnits: number;
-  acceptedDonors?: string[];
+  interestedDonors?: string[];
+  approvedDonors?: string[];
   contactNumber: string;
   requiredByDate: string;
   notes: string;

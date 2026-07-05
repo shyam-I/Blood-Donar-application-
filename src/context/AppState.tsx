@@ -1,14 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Alert } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import * as SecureStore from 'expo-secure-store';
+import * as Sharing from 'expo-sharing';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Alert, Platform } from 'react-native';
 
 // Import Types and Mock Data
-import { Donor, Admin, EmergencyRequest, DonationHistory, AppNotification, UserSession, AuthResponse } from '@/data/types';
-import { mockUsers } from '@/data/mockUsers';
 import { mockAdmins } from '@/data/mockAdmins';
 import { mockBloodRequests } from '@/data/mockBloodRequests';
 import { mockDonations } from '@/data/mockDonations';
 import { mockNotifications } from '@/data/mockNotifications';
+import { mockUsers } from '@/data/mockUsers';
+import { AppNotification, AuthResponse, DonationHistory, Donor, EmergencyRequest, UserSession } from '@/data/types';
 
 export interface GoogleAuthData {
   id: string;
@@ -24,7 +27,7 @@ interface AppContextType {
   notifications: AppNotification[];
   currentUser: UserSession | null;
   isLoading: boolean; // Add loading state for initial auth check
-  
+
   // Auth Methods
   pendingGoogleAuth: GoogleAuthData | null;
   setPendingGoogleAuth: (data: GoogleAuthData | null) => void;
@@ -33,12 +36,16 @@ interface AppContextType {
   isAuthenticated: () => boolean;
   getCurrentUser: () => UserSession | null;
   refreshToken: () => Promise<void>;
-  
+
   registerDonor: (newDonor: Omit<Donor, 'id' | 'isActive' | 'totalDonations'>) => Promise<boolean>;
-  createBloodRequest: (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'acceptedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => void;
-  approveBloodRequest: (id: string) => void;
-  rejectBloodRequest: (id: string) => void;
+  createBloodRequest: (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => void;
+  updateBloodRequest: (id: string, updates: Partial<EmergencyRequest>) => void;
+  markRequestComplete: (id: string) => void;
+  markRequestPending: (id: string) => void;
+  deleteBloodRequest: (id: string) => void;
   acceptBloodRequest: (id: string, donorId: string) => void;
+  approveInterestedDonor: (requestId: string, donorId: string) => void;
+  downloadDonationReport: (from: string, to: string) => Promise<void>;
   updateLastDonationDate: (donorId: string, date: string) => void;
   toggleDonorStatus: (donorId: string) => void;
   addDonationRecord: (record: Omit<DonationHistory, 'id'>) => void;
@@ -77,12 +84,12 @@ const TOKEN_KEY = 'mock_jwt_access_token';
 const REFRESH_TOKEN_KEY = 'mock_jwt_refresh_token';
 const USER_KEY = 'mock_auth_user';
 
-export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [donors, setDonors] = useState<Donor[]>(mockUsers);
   const [requests, setRequests] = useState<EmergencyRequest[]>(mockBloodRequests);
   const [donations, setDonations] = useState<DonationHistory[]>(mockDonations);
   const [notifications, setNotifications] = useState<AppNotification[]>(mockNotifications);
-  
+
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<GoogleAuthData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +100,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const token = await SecureStore.getItemAsync(TOKEN_KEY);
         const storedUser = await SecureStore.getItemAsync(USER_KEY);
-        
+
         if (token && storedUser) {
           const parsedUser = JSON.parse(storedUser);
           setCurrentUser(parsedUser);
@@ -104,7 +111,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setIsLoading(false);
       }
     };
-    
+
     loadAuth();
   }, []);
 
@@ -154,7 +161,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
         await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authResponse.refreshToken);
         await SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser));
-        
+
         setCurrentUser(authUser);
       } catch (error) {
         console.error('Failed to save auth state', error);
@@ -190,8 +197,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Mock refresh token logic. In a real app, you would make an API call to exchange the refresh token for a new access token.
     console.log("Mock: Refreshing token...");
     try {
-       const newAccessToken = `mock-jwt-token-${Date.now()}`;
-       await SecureStore.setItemAsync(TOKEN_KEY, newAccessToken);
+      const newAccessToken = `mock-jwt-token-${Date.now()}`;
+      await SecureStore.setItemAsync(TOKEN_KEY, newAccessToken);
     } catch (error) {
       console.error('Failed to refresh token', error);
     }
@@ -238,7 +245,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authResponse.refreshToken);
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser));
-      
+
       setCurrentUser(authUser);
       setPendingGoogleAuth(null);
     } catch (error) {
@@ -248,14 +255,15 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return true;
   };
 
-  const createBloodRequest = (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'acceptedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => {
+  const createBloodRequest = (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => {
     const id = `r${requests.length + 1}`;
     const newRequest: EmergencyRequest = {
       ...request,
       id,
       unitsAccepted: 0,
       remainingUnits: request.unitsRequired,
-      acceptedDonors: [],
+      interestedDonors: [],
+      approvedDonors: [],
       emergencyLevel: request.emergencyLevel || 'High',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -264,93 +272,270 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setRequests((prev) => [newRequest, ...prev]);
+
+    // Send targeted notifications upon creation to compatible donors
+    const compatibleBloodGroups = getCompatibleDonors(request.bloodGroup);
+    const eligibleDonors = donors.filter(d =>
+      d.isActive &&
+      compatibleBloodGroups.includes(d.bloodGroup) &&
+      (d.lastDonationDate === 'Never' || getDaysSince(d.lastDonationDate) >= 60)
+    );
+
+    const newNotifications = eligibleDonors.map((donor, idx) => ({
+      id: `n${Date.now()}_${idx}`,
+      userId: donor.id,
+      title: `Emergency Blood Request`,
+      body: `Blood Group: ${request.bloodGroup}\nHospital: ${request.hospitalName}\nLocation: Coimbatore\n${request.unitsRequired} Units Required\nTap to View`,
+      type: 'Emergency' as const,
+      createdAt: new Date().toISOString(),
+      read: false,
+    }));
+
+    setNotifications((prevNotifs) => [...newNotifications, ...prevNotifs]);
   };
 
-  const approveBloodRequest = (id: string) => {
+  const updateBloodRequest = (id: string, updates: Partial<EmergencyRequest>) => {
     setRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === id) {
-          const updatedReq = {
-            ...req,
-            status: 'Approved' as const,
-            approvedBy: currentUser?.name || 'Admin',
-            updatedAt: new Date().toISOString(),
-          };
-          
-          // Send targeted notifications upon approval to compatible donors
-          const compatibleBloodGroups = getCompatibleDonors(req.bloodGroup);
-          const eligibleDonors = donors.filter(d => 
-            d.isActive && 
-            compatibleBloodGroups.includes(d.bloodGroup) && 
-            (d.lastDonationDate === 'Never' || getDaysSince(d.lastDonationDate) >= 60)
-          );
-
-          const newNotifications = eligibleDonors.map((donor, idx) => ({
-            id: `n${Date.now()}_${idx}`,
-            userId: donor.id,
-            title: `Emergency Blood Request`,
-            body: `Blood Group: ${req.bloodGroup}\nHospital: ${req.hospitalName}\nLocation: Coimbatore\n${req.unitsRequired} Units Required\nTap to View`,
-            type: 'Emergency' as const,
-            createdAt: new Date().toISOString(),
-            read: false,
-          }));
-
-          setNotifications((prevNotifs) => [...newNotifications, ...prevNotifs]);
-
-          return updatedReq;
-        }
-        return req;
-      })
+      prev.map((req) => (req.id === id ? { ...req, ...updates, updatedAt: new Date().toISOString() } : req))
     );
   };
 
-  const rejectBloodRequest = (id: string) => {
+  const markRequestComplete = (id: string) => {
     setRequests((prev) =>
-      prev.map((req) =>
-        req.id === id ? { ...req, status: 'Rejected', updatedAt: new Date().toISOString() } : req
-      )
+      prev.map((req) => (req.id === id ? { ...req, status: 'Completed', updatedAt: new Date().toISOString() } : req))
     );
+  };
+
+  const markRequestPending = (id: string) => {
+    setRequests((prev) =>
+      prev.map((req) => (req.id === id ? { ...req, status: 'Pending', updatedAt: new Date().toISOString() } : req))
+    );
+  };
+
+  const deleteBloodRequest = (id: string) => {
+    setRequests((prev) => prev.filter((req) => req.id !== id));
   };
 
   const acceptBloodRequest = (id: string, donorId: string) => {
     setRequests((prev) =>
       prev.map((req) => {
         if (req.id === id) {
-          const alreadyAccepted = req.acceptedDonors?.includes(donorId);
-          if (alreadyAccepted) {
-            Alert.alert("Already Accepted", "You have already accepted this blood request.");
+          const alreadyInterested = req.interestedDonors?.includes(donorId) || req.approvedDonors?.includes(donorId);
+          if (alreadyInterested) {
             return req;
           }
 
-          const newAccepted = req.unitsAccepted + 1;
-          const newRemaining = Math.max(0, req.unitsRequired - newAccepted);
-          const newStatus = newRemaining === 0 ? 'Completed' : 'Partially Filled';
-          const newAcceptedDonors = [...(req.acceptedDonors || []), donorId];
-
-          if (newRemaining === 0) {
-            const successNotif: AppNotification = {
-              id: `n_success_${Date.now()}`,
-              title: 'Blood Request Successfully Completed',
-              body: `The request for ${req.patientName} (${req.bloodGroup}) has been fulfilled.`,
-              type: 'System',
-              createdAt: new Date().toISOString(),
-              read: false,
-            };
-            setNotifications((prevNotifs) => [successNotif, ...prevNotifs]);
-          }
+          const newInterestedDonors = [...(req.interestedDonors || []), donorId];
 
           return {
             ...req,
-            unitsAccepted: newAccepted,
-            remainingUnits: newRemaining,
-            acceptedDonors: newAcceptedDonors,
-            status: newStatus,
+            interestedDonors: newInterestedDonors,
             updatedAt: new Date().toISOString(),
           };
         }
         return req;
       })
     );
+  };
+
+  const approveInterestedDonor = (requestId: string, donorId: string) => {
+    setRequests((prev) =>
+      prev.map((req) => {
+        if (req.id === requestId) {
+          const newInterested = (req.interestedDonors || []).filter(id => id !== donorId);
+          const newApproved = [...(req.approvedDonors || []), donorId];
+          const newAccepted = req.unitsAccepted + 1;
+          const newRemaining = Math.max(0, req.unitsRequired - newAccepted);
+
+          const successNotif: AppNotification = {
+            id: `n_approved_${Date.now()}`,
+            userId: donorId,
+            title: 'Donation Request Approved',
+            body: `Your request to donate blood for ${req.patientName} has been approved. Patient details are now available.`,
+            type: 'System',
+            createdAt: new Date().toISOString(),
+            read: false,
+          };
+          setNotifications((prevNotifs) => [successNotif, ...prevNotifs]);
+
+          return {
+            ...req,
+            interestedDonors: newInterested,
+            approvedDonors: newApproved,
+            unitsAccepted: newAccepted,
+            remainingUnits: newRemaining,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return req;
+      })
+    );
+  };
+
+  const downloadDonationReport = async (from: string, to: string) => {
+    try {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      // Ensure the time doesn't skew the date
+      fromDate.setHours(0, 0, 0, 0);
+      toDate.setHours(23, 59, 59, 999);
+
+      const allCompleted = requests.filter(req => req.status === 'Completed');
+      const completedRequests = allCompleted.filter(req => {
+        if (!req.updatedAt) return false;
+        const reqDate = new Date(req.updatedAt);
+        return reqDate >= fromDate && reqDate <= toDate;
+      });
+
+      console.log("--- DONATION REPORT LOGGING ---");
+      console.log("Selected From Date:", fromDate);
+      console.log("Selected To Date:", toDate);
+      console.log("Total Completed Records in DB:", allCompleted.length);
+      console.log("Filtered Records Count:", completedRequests.length);
+      console.log("-------------------------------");
+
+      const donationRecords: any[] = [];
+      let totalUnits = 0;
+      let uniqueDonors = new Set<string>();
+
+      completedRequests.forEach(req => {
+        const donorCounts: Record<string, number> = {};
+        (req.approvedDonors || []).forEach(donorId => {
+          donorCounts[donorId] = (donorCounts[donorId] || 0) + 1;
+        });
+
+        Object.keys(donorCounts).forEach(donorId => {
+          const d = donors.find(d => d.id === donorId);
+          if (d) {
+            const units = donorCounts[donorId];
+            donationRecords.push({
+              date: new Date(req.updatedAt!).toLocaleDateString(),
+              donorName: d.fullName,
+              bloodGroup: d.bloodGroup,
+              patientName: req.patientName,
+              hospitalName: req.hospitalName,
+              units: units,
+              status: req.status
+            });
+            totalUnits += units;
+            uniqueDonors.add(donorId);
+          }
+        });
+      });
+
+      if (donationRecords.length === 0) {
+        Alert.alert("No Records", "No donation records found for the selected date range.");
+        return;
+      }
+
+      const htmlContent = `
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+              h1 { color: #E63946; text-align: center; }
+              .header { text-align: center; margin-bottom: 40px; }
+              .summary { display: flex; justify-content: space-between; background-color: #F8F9FA; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+              .summary-box { text-align: center; }
+              .summary-title { font-size: 12px; color: #666; text-transform: uppercase; }
+              .summary-value { font-size: 24px; font-weight: bold; color: #1D3557; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+              th { background-color: #1D3557; color: white; }
+              tr:nth-child(even) { background-color: #f2f2f2; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>BloodConnect Donation Report</h1>
+              <p>Selected Date Range</p>
+              <p>From: <strong>${fromDate.toLocaleDateString()}</strong> To: <strong>${new Date(to).toLocaleDateString()}</strong></p>
+              <p>Generated On: ${new Date().toLocaleString()}</p>
+            </div>
+            
+            <div class="summary">
+              <div class="summary-box">
+                <div class="summary-title">Total Donations</div>
+                <div class="summary-value">${donationRecords.length}</div>
+              </div>
+              <div class="summary-box">
+                <div class="summary-title">Total Blood Units Donated</div>
+                <div class="summary-value">${totalUnits}</div>
+              </div>
+              <div class="summary-box">
+                <div class="summary-title">Total Donors</div>
+                <div class="summary-value">${uniqueDonors.size}</div>
+              </div>
+              <div class="summary-box">
+                <div class="summary-title">Total Patients Helped</div>
+                <div class="summary-value">${completedRequests.length}</div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Donor Name</th>
+                  <th>Blood Group</th>
+                  <th>Patient Name</th>
+                  <th>Hospital</th>
+                  <th>Units</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${donationRecords.map(record => `
+                  <tr>
+                    <td>${record.date}</td>
+                    <td>${record.donorName}</td>
+                    <td>${record.bloodGroup}</td>
+                    <td>${record.patientName}</td>
+                    <td>${record.hospitalName}</td>
+                    <td>${record.units}</td>
+                    <td>${record.status}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      try {
+        if (Platform.OS === 'web') {
+          await Print.printAsync({ html: htmlContent });
+          return;
+        }
+
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        console.log("Generated PDF URI:", uri);
+
+        try {
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (!isAvailable) {
+            Alert.alert("Notice", "PDF generated successfully, but sharing is not supported on this device.");
+            return;
+          }
+
+          const fileInfo = await FileSystem.getInfoAsync(uri);
+          if (!fileInfo.exists) {
+            throw new Error("Generated PDF file does not exist or is unreadable.");
+          }
+
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+        } catch (shareError) {
+          console.error("Share error:", shareError);
+          Alert.alert("Error", "Failed to share the generated report.");
+        }
+      } catch (printError) {
+        console.error("Print error:", printError);
+        Alert.alert("Error", "Failed to generate report PDF.");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to generate report.");
+    }
   };
 
   const updateLastDonationDate = (donorId: string, date: string) => {
@@ -437,9 +622,13 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         refreshToken,
         registerDonor,
         createBloodRequest,
-        approveBloodRequest,
-        rejectBloodRequest,
+        updateBloodRequest,
+        markRequestComplete,
+        markRequestPending,
+        deleteBloodRequest,
         acceptBloodRequest,
+        approveInterestedDonor,
+        downloadDonationReport,
         updateLastDonationDate,
         toggleDonorStatus,
         addDonationRecord,
