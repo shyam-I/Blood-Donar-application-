@@ -10,8 +10,9 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const generateMockId = (prefix: string) => `${prefix}_${Date.now()}`;
+
 export default function LoginScreen() {
-  let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
   const { loginWithGoogle, donors } = useAppState();
 
@@ -24,7 +25,7 @@ export default function LoginScreen() {
 
     // Mock Google Sign-In Payload
     const mockGoogleUser = {
-      id: `google_${Date.now()}`,
+      id: generateMockId('google'),
       email: 'new.donor@gmail.com', // Change this to test different scenarios
       name: 'Google User',
       picture: 'https://via.placeholder.com/150',
@@ -54,7 +55,7 @@ export default function LoginScreen() {
 
   const handleQuickFillDonor = (emailAddress: string, fullName: string) => {
     const donorGoogleUser = {
-      id: `google_donor_${Date.now()}`,
+      id: generateMockId('google_donor'),
       email: emailAddress, 
       name: fullName,
     };

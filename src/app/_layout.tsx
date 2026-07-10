@@ -1,10 +1,8 @@
-import React from 'react';
+import { AppStatexProvider } from '@/context/AppState';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
-import { AppStateProvider } from '@/context/AppState';
-import { useProtectedRoute } from '@/hooks/useProtectedRoute';
-
+import type { ReactNode } from 'react';
 function RootLayoutNav() {
   useProtectedRoute();
   return (
@@ -27,9 +25,9 @@ export default function RootLayout() {
   let colorScheme = 'light' as 'light' | 'dark';
 
   return (
-    <AppStateProvider>
+    <AppStatexProvider>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <RootLayoutNav />
-    </AppStateProvider>
+    </AppStatexProvider>
   );
 }

@@ -21,8 +21,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const calculateAge = (dob: Date) => {
+  const diffMs = Date.now() - dob.getTime();
+  return Math.abs(new Date(diffMs).getUTCFullYear() - 1970);
+};
+
 export default function RegisterScreen() {
-  let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
   const { registerDonor, pendingGoogleAuth } = useAppState();
 
@@ -59,8 +63,7 @@ export default function RegisterScreen() {
       if (!dob) {
         stepErrors.dob = 'Date of birth is required';
       } else {
-        const diffMs = Date.now() - dob.getTime();
-        const computedAge = Math.abs(new Date(diffMs).getUTCFullYear() - 1970);
+        const computedAge = calculateAge(dob);
         if (computedAge < 18 || computedAge > 65) {
            stepErrors.dob = 'You must be between 18 and 65 years old to register';
         }
@@ -102,9 +105,7 @@ export default function RegisterScreen() {
 
     let computedAge = 18;
     if (dob) {
-      const diffMs = Date.now() - dob.getTime();
-      const ageDt = new Date(diffMs);
-      computedAge = Math.abs(ageDt.getUTCFullYear() - 1970);
+      computedAge = calculateAge(dob);
     }
 
     const success = await registerDonor({
@@ -238,7 +239,7 @@ export default function RegisterScreen() {
                 {errors.dob && <Text style={[styles.errorText, { color: themeColors.error }]}>{errors.dob}</Text>}
                 {dob && !errors.dob && (
                   <Text style={{ fontSize: 13, color: themeColors.textSecondary, marginBottom: 16, marginLeft: 4 }}>
-                    Calculated Age: {Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)} years
+                    Calculated Age: {calculateAge(dob)} years
                   </Text>
                 )}
 

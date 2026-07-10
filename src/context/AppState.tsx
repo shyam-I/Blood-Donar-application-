@@ -5,6 +5,30 @@ import * as Sharing from 'expo-sharing';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 
+// Cross-platform storage helper
+const StorageAPI = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      return localStorage.getItem(key);
+    }
+    return await SecureStore.getItemAsync(key);
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.setItem(key, value);
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
+  },
+  async removeItem(key: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem(key);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  },
+};
+
 // Import Types and Mock Data
 import { mockAdmins } from '@/data/mockAdmins';
 import { mockBloodRequests } from '@/data/mockBloodRequests';
@@ -98,8 +122,8 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     const loadAuth = async () => {
       try {
-        const token = await SecureStore.getItemAsync(TOKEN_KEY);
-        const storedUser = await SecureStore.getItemAsync(USER_KEY);
+        const token = await StorageAPI.getItem(TOKEN_KEY);
+        const storedUser = await StorageAPI.getItem(USER_KEY);
 
         if (token && storedUser) {
           const parsedUser = JSON.parse(storedUser);
@@ -158,9 +182,9 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       try {
         // Securely store the token and user data
-        await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
-        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authResponse.refreshToken);
-        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser));
+        await StorageAPI.setItem(TOKEN_KEY, authResponse.accessToken);
+        await StorageAPI.setItem(REFRESH_TOKEN_KEY, authResponse.refreshToken);
+        await StorageAPI.setItem(USER_KEY, JSON.stringify(authUser));
 
         setCurrentUser(authUser);
       } catch (error) {
@@ -175,9 +199,9 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const logout = async () => {
     try {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(USER_KEY);
+      await StorageAPI.removeItem(TOKEN_KEY);
+      await StorageAPI.removeItem(REFRESH_TOKEN_KEY);
+      await StorageAPI.removeItem(USER_KEY);
     } catch (error) {
       console.error('Failed to clear auth state', error);
     } finally {
@@ -198,7 +222,7 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log("Mock: Refreshing token...");
     try {
       const newAccessToken = `mock-jwt-token-${Date.now()}`;
-      await SecureStore.setItemAsync(TOKEN_KEY, newAccessToken);
+      await StorageAPI.setItem(TOKEN_KEY, newAccessToken);
     } catch (error) {
       console.error('Failed to refresh token', error);
     }
@@ -242,9 +266,9 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     try {
-      await SecureStore.setItemAsync(TOKEN_KEY, authResponse.accessToken);
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, authResponse.refreshToken);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(authUser));
+      await StorageAPI.setItem(TOKEN_KEY, authResponse.accessToken);
+      await StorageAPI.setItem(REFRESH_TOKEN_KEY, authResponse.refreshToken);
+      await StorageAPI.setItem(USER_KEY, JSON.stringify(authUser));
 
       setCurrentUser(authUser);
       setPendingGoogleAuth(null);
