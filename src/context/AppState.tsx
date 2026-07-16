@@ -62,7 +62,9 @@ interface AppContextType {
   refreshToken: () => Promise<void>;
 
   registerDonor: (newDonor: Omit<Donor, 'id' | 'isActive' | 'totalDonations'>) => Promise<boolean>;
-  createBloodRequest: (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => void;
+  createBloodRequest: (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors' | 'createdById'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'], createdByRole?: 'Admin' | 'Donor', createdById?: string }) => void;
+  approveBloodRequest: (id: string) => void;
+  rejectBloodRequest: (id: string) => void;
   updateBloodRequest: (id: string, updates: Partial<EmergencyRequest>) => void;
   markRequestComplete: (id: string) => void;
   markRequestPending: (id: string) => void;
@@ -279,8 +281,10 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return true;
   };
 
-  const createBloodRequest = (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'] }) => {
+  const createBloodRequest = (request: Omit<EmergencyRequest, 'id' | 'createdAt' | 'status' | 'createdBy' | 'unitsAccepted' | 'remainingUnits' | 'emergencyLevel' | 'approvedBy' | 'updatedAt' | 'interestedDonors' | 'approvedDonors' | 'createdById'> & { emergencyLevel?: EmergencyRequest['emergencyLevel'], createdByRole?: 'Admin' | 'Donor', createdById?: string }) => {
     const id = `r${requests.length + 1}`;
+    const isDonor = request.createdByRole === 'Donor';
+    
     const newRequest: EmergencyRequest = {
       ...request,
       id,
@@ -291,13 +295,45 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       emergencyLevel: request.emergencyLevel || 'High',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      status: 'Pending',
+      status: isDonor ? 'Pending Verification' : 'Pending',
       createdBy: currentUser?.name || 'Unknown',
+      createdById: request.createdById,
     };
 
     setRequests((prev) => [newRequest, ...prev]);
 
-    // Send targeted notifications upon creation to compatible donors
+    if (!isDonor) {
+      // Send targeted notifications upon creation to compatible donors
+      const compatibleBloodGroups = getCompatibleDonors(request.bloodGroup);
+      const eligibleDonors = donors.filter(d =>
+        d.isActive &&
+        compatibleBloodGroups.includes(d.bloodGroup) &&
+        (d.lastDonationDate === 'Never' || getDaysSince(d.lastDonationDate) >= 60)
+      );
+
+      const newNotifications = eligibleDonors.map((donor, idx) => ({
+        id: `n${Date.now()}_${idx}`,
+        userId: donor.id,
+        title: `Emergency Blood Request`,
+        body: `Blood Group: ${request.bloodGroup}\nHospital: ${request.hospitalName}\nLocation: Coimbatore\n${request.unitsRequired} Units Required\nTap to View`,
+        type: 'Emergency' as const,
+        createdAt: new Date().toISOString(),
+        read: false,
+      }));
+
+      setNotifications((prevNotifs) => [...newNotifications, ...prevNotifs]);
+    }
+  };
+
+  const approveBloodRequest = (id: string) => {
+    const request = requests.find((req) => req.id === id);
+    if (!request) return;
+
+    setRequests((prev) =>
+      prev.map((req) => (req.id === id ? { ...req, status: 'Pending', updatedAt: new Date().toISOString() } : req))
+    );
+
+    // Send targeted notifications to compatible donors
     const compatibleBloodGroups = getCompatibleDonors(request.bloodGroup);
     const eligibleDonors = donors.filter(d =>
       d.isActive &&
@@ -306,7 +342,7 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     const newNotifications = eligibleDonors.map((donor, idx) => ({
-      id: `n${Date.now()}_${idx}`,
+      id: `n${Date.now()}_approve_${idx}`,
       userId: donor.id,
       title: `Emergency Blood Request`,
       body: `Blood Group: ${request.bloodGroup}\nHospital: ${request.hospitalName}\nLocation: Coimbatore\n${request.unitsRequired} Units Required\nTap to View`,
@@ -316,6 +352,28 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
 
     setNotifications((prevNotifs) => [...newNotifications, ...prevNotifs]);
+  };
+
+  const rejectBloodRequest = (id: string) => {
+    const request = requests.find((req) => req.id === id);
+    if (!request) return;
+
+    setRequests((prev) =>
+      prev.map((req) => (req.id === id ? { ...req, status: 'Rejected', updatedAt: new Date().toISOString() } : req))
+    );
+
+    if (request.createdById) {
+      const rejectNotif: AppNotification = {
+        id: `n_rejected_${Date.now()}`,
+        userId: request.createdById,
+        title: 'Blood Request Rejected',
+        body: 'Your Blood Request has not been approved.\n\nPlease contact the BloodConnect Admin for more information.',
+        type: 'System',
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+      setNotifications((prevNotifs) => [rejectNotif, ...prevNotifs]);
+    }
   };
 
   const updateBloodRequest = (id: string, updates: Partial<EmergencyRequest>) => {
@@ -646,6 +704,8 @@ export const AppStatexProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         refreshToken,
         registerDonor,
         createBloodRequest,
+        approveBloodRequest,
+        rejectBloodRequest,
         updateBloodRequest,
         markRequestComplete,
         markRequestPending,

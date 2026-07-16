@@ -11,7 +11,7 @@ import { Button } from '@/components/Button';
 export default function PendingRequestsScreen() {
   let colorScheme = 'light' as 'light' | 'dark';
   const themeColors = Colors.light;
-  const { requests, donors, deleteBloodRequest, markRequestComplete, markRequestPending, approveInterestedDonor } = useAppState();
+  const { requests, donors, deleteBloodRequest, markRequestComplete, markRequestPending, approveInterestedDonor, approveBloodRequest, rejectBloodRequest } = useAppState();
 
   const requestsList = requests;
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -115,9 +115,33 @@ export default function PendingRequestsScreen() {
                     <Text style={{ color: themeColors.textSecondary, fontSize: 14, marginBottom: 4 }}>Hospital Address</Text>
                     <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>{selectedRequest.hospitalAddress || 'N/A'}</Text>
                   </View>
-                  <View style={{ marginBottom: 12 }}>
-                    <Text style={{ color: themeColors.textSecondary, fontSize: 14, marginBottom: 4 }}>Notes</Text>
-                    <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>{selectedRequest.notes || 'None'}</Text>
+                  
+                  {(() => {
+                    let parsedNotes: any = null;
+                    if (selectedRequest.notes) {
+                      try {
+                        parsedNotes = JSON.parse(selectedRequest.notes);
+                      } catch (e) {
+                        parsedNotes = { notes: selectedRequest.notes };
+                      }
+                    }
+                    return (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={{ color: themeColors.textSecondary, fontSize: 14, marginBottom: 4 }}>Medical Condition / Notes</Text>
+                        <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>
+                          {parsedNotes?.condition || parsedNotes?.notes || selectedRequest.notes || 'None'}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={{ color: themeColors.textSecondary, fontSize: 14 }}>Created By</Text>
+                    <Text style={{ color: themeColors.text, fontSize: 14, fontWeight: '600' }}>{selectedRequest.createdBy}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={{ color: themeColors.textSecondary, fontSize: 14 }}>Submission Date</Text>
+                    <Text style={{ color: themeColors.text, fontSize: 14, fontWeight: '600' }}>{new Date(selectedRequest.createdAt).toLocaleDateString()}</Text>
                   </View>
 
                   {/* Interested Donors Section */}
@@ -163,27 +187,46 @@ export default function PendingRequestsScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-                  <Pressable 
-                    style={{ flex: 1, backgroundColor: 'rgba(239, 35, 60, 0.1)', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
-                    onPress={() => { deleteBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
-                  >
-                    <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Delete</Text>
-                  </Pressable>
-                  
-                  {selectedRequest.status === 'Pending' ? (
-                    <Pressable 
-                      style={{ flex: 1, backgroundColor: themeColors.success, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
-                      onPress={() => { markRequestComplete(selectedRequest.id); setSelectedRequest(null); }}
-                    >
-                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Complete</Text>
-                    </Pressable>
+                  {selectedRequest.status === 'Pending Verification' ? (
+                    <>
+                      <Pressable 
+                        style={{ flex: 1, backgroundColor: 'rgba(239, 35, 60, 0.1)', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                        onPress={() => { rejectBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
+                      >
+                        <Text style={{ color: themeColors.error, fontWeight: '700', fontSize: 16 }}>Reject</Text>
+                      </Pressable>
+                      <Pressable 
+                        style={{ flex: 1, backgroundColor: themeColors.success, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                        onPress={() => { approveBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
+                      >
+                        <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Approve</Text>
+                      </Pressable>
+                    </>
                   ) : (
-                    <Pressable 
-                      style={{ flex: 1, backgroundColor: themeColors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
-                      onPress={() => { markRequestPending(selectedRequest.id); setSelectedRequest(null); }}
-                    >
-                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Mark Pending</Text>
-                    </Pressable>
+                    <>
+                      <Pressable 
+                        style={{ flex: 1, backgroundColor: 'rgba(239, 35, 60, 0.1)', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                        onPress={() => { deleteBloodRequest(selectedRequest.id); setSelectedRequest(null); }}
+                      >
+                        <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Delete</Text>
+                      </Pressable>
+                      
+                      {selectedRequest.status === 'Pending' ? (
+                        <Pressable 
+                          style={{ flex: 1, backgroundColor: themeColors.success, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                          onPress={() => { markRequestComplete(selectedRequest.id); setSelectedRequest(null); }}
+                        >
+                          <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Complete</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable 
+                          style={{ flex: 1, backgroundColor: themeColors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                          onPress={() => { markRequestPending(selectedRequest.id); setSelectedRequest(null); }}
+                        >
+                          <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Mark Pending</Text>
+                        </Pressable>
+                      )}
+                    </>
                   )}
                 </View>
               </ScrollView>

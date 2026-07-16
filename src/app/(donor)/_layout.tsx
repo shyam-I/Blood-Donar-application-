@@ -54,9 +54,9 @@ export default function DonorLayout() {
         }}
       />
       <Tabs.Screen
-        name="recognition"
+        name="blood-request"
         options={{
-          title: 'Leaderboard',
+          title: 'Blood Request',
           tabBarIcon: ({ color, size }) => <Award size={size} color={color} />,
         }}
       />

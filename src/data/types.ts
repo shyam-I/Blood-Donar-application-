@@ -49,10 +49,11 @@ export interface EmergencyRequest {
   contactNumber: string;
   requiredByDate: string;
   notes: string;
-  status: 'Pending' | 'Open' | 'Approved' | 'Partially Filled' | 'Completed' | 'Closed' | 'Rejected';
+  status: 'Pending Verification' | 'Pending' | 'Open' | 'Approved' | 'Partially Filled' | 'Completed' | 'Closed' | 'Rejected';
   createdAt: string;
   updatedAt?: string;
   createdBy: string;
+  createdById?: string;
   approvedBy?: string;
   emergencyLevel: 'Normal' | 'Urgent' | 'Critical' | 'High';
 }
